@@ -45,4 +45,4 @@ class NetClient: public QObject
 
 };
 
-#endif // NETCLIENT_H
+#endif

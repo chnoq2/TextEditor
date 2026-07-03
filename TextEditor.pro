@@ -13,14 +13,14 @@ SOURCES += \
     netclient.cpp
 
 HEADERS += \
-    Protocol.h \
     mainwindow.h \
     netclient.h
 
 FORMS += \
     mainwindow.ui
 
-# Default rules for deployment.
+INCLUDEPATH += Shared
+
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
