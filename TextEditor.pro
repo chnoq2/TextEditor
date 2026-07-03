@@ -1,6 +1,5 @@
-QT += widgets
-QT += core gui
-QT += core gui network
+QT += core gui network widgets
+
 CONFIG += c++17
 
 win32-msvc {
@@ -18,8 +17,6 @@ HEADERS += \
 
 FORMS += \
     mainwindow.ui
-
-INCLUDEPATH += Shared
 
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin

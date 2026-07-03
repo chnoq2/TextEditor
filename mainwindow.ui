@@ -14,11 +14,11 @@
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QWidget" name="">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
-      <x>40</x>
-      <y>540</y>
+      <x>10</x>
+      <y>530</y>
       <width>337</width>
       <height>26</height>
      </rect>
@@ -37,7 +37,7 @@
      <item>
       <widget class="QLabel" name="label_2">
        <property name="text">
-        <string>host</string>
+        <string>port</string>
        </property>
       </widget>
      </item>

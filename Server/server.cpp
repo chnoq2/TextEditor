@@ -1,5 +1,5 @@
 #include "server.h"
-#include "Protocol.h"
+#include "protocol.h"
 #include <QDataStream>
 
 Server::Server(QObject *parent) : QObject(parent) {}
