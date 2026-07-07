@@ -1,13 +1,21 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "netclient.h"
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
+#include <QTextCursor>
+
+#include <QIcon>
+#include <QCoreApplication>
+#include <QDir>
+
+MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
 
     m_client = new NetClient(this);
+
+   this->setWindowIcon(QIcon(":/source/icon_app.png"));
+
+
 }
 
 MainWindow::~MainWindow()
