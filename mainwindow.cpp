@@ -13,7 +13,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
 
     m_client = new NetClient(this);
 
-   this->setWindowIcon(QIcon(":/source/icon_app.png"));
+    this->setWindowIcon(QIcon(":/source/icon_app.png"));
 
 
 }
