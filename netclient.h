@@ -5,7 +5,9 @@
 #include <QString>
 #include <QTcpSocket>
 #include "protocol/protocol.h"
+#include "protocol/protocol.h"
 #include <QDataStream>
+#include <QDebug>
 #include <QDebug>
 
 class NetClient: public QObject

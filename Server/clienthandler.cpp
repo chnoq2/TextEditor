@@ -30,22 +30,23 @@ void ClientHandler::onReadyRead()
 {
     QDataStream in(m_socket);
 
-    while (true) {
-        if (m_nextBlockSize == 0) {
-            // ждём заголовок (4 байта длины)
-            if (m_socket->bytesAvailable() < sizeof(quint32)) break;
-            in >> m_nextBlockSize;
-        }
+    while (true)
+    {
+        in.startTransaction();
 
-        // ждём весь пакет
-        if (m_socket->bytesAvailable() < m_nextBlockSize) break;
-
+        quint32 blockSize;
         quint8 msgType;
-        in >> msgType;
 
-        // payload = всё что после типа
-        QByteArray payload = m_socket->read(m_nextBlockSize - sizeof(quint8));
-        m_nextBlockSize = 0;
+        in >> blockSize >> msgType;
+
+        int payloadSize = blockSize - sizeof(quint8);
+        QByteArray payload;
+        payload.resize(payloadSize);
+        in.readRawData(payload.data(), payloadSize);
+
+        if (!in.commitTransaction()) {
+            break;
+        }
 
         emit packetReceived(this, msgType, payload);
     }

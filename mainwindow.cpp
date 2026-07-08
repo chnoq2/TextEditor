@@ -7,7 +7,14 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "netclient.h"
+#include <QTextCursor>
 
+#include <QIcon>
+#include <QCoreApplication>
+#include <QDir>
+
+MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow)
+{
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
@@ -24,6 +31,8 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     connect(m_client, &NetClient::connected, this, [this]() {ui->statusLabel->setText("Подключено"); ui->statusLabel->setStyleSheet("color: green;");});
 }
 
+MainWindow::~MainWindow()
+{
 MainWindow::~MainWindow()
 {
     delete ui;

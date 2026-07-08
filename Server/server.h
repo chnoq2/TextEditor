@@ -6,6 +6,7 @@
 #include <QList>
 #include "clienthandler.h"
 #include "document.h"
+#include "document.h"
 
 class Server : public QObject
 {
@@ -31,3 +32,4 @@ private:
 };
 
 #endif
+

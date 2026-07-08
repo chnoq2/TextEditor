@@ -10,6 +10,8 @@ NetClient::NetClient(QObject *parent) : QObject(parent), m_socket(this), m_nextB
 
 NetClient::~NetClient()
 {
+NetClient::~NetClient()
+{
 
 }
 
@@ -17,6 +19,11 @@ void NetClient::connectToServer(const QString &host, quint16 port){
     qDebug() << "try to connect" << host << ":" << port;
     m_socket.connectToHost(host,port);
 }
+
+
+void NetClient::sendInsert(int position, const QString &text)
+{
+    qDebug() << "[SENDING] sendInsert called. Position:" << position << "Text:" << text;  // пока что добабавим для логов
 
 
 void NetClient::sendInsert(int position, const QString &text)
@@ -33,6 +40,12 @@ void NetClient::sendInsert(int position, const QString &text)
     Protocol::TextInsertData data(position, text,{},{});
     out << data;
 
+    // из за обновлеленного протокола, добавляем новые параметрры для функции
+    // где первые {} это изображения в виде массива и  вторые {} использованные инструменты
+
+    Protocol::TextInsertData data(position, text,{},{});
+    out << data;
+
     sendPacket(Protocol::TextInsert, buffer);
 
 }
@@ -41,15 +54,23 @@ void NetClient::sendDelete(int position, int length){
 
     qDebug() << "[SENDING] sendDelete called. Position:" << position << "Length:" << length; // пока что добабавим для логов
 
+
+    qDebug() << "[SENDING] sendDelete called. Position:" << position << "Length:" << length; // пока что добабавим для логов
+
     QByteArray buffer;
     QDataStream out(&buffer, QIODevice::WriteOnly);
 
     // из за обновлеленного протокола, добавляем новые параметрры для функции
     // где первые {} это изображения в виде массива и  вторые {} использованные инструменты
+    // из за обновлеленного протокола, добавляем новые параметрры для функции
+    // где первые {} это изображения в виде массива и  вторые {} использованные инструменты
 
     Protocol::TextDeleteData data(position, length,{},{});
     out << data;
+    Protocol::TextDeleteData data(position, length,{},{});
+    out << data;
 
+    sendPacket(Protocol::TextDelete, buffer);
     sendPacket(Protocol::TextDelete, buffer);
 
 }
@@ -71,6 +92,11 @@ void NetClient::sendPacket(quint8 msgType, const QByteArray &payload){
 
         return;
     }
+    if (m_socket.state() != QAbstractSocket::ConnectedState) {
+        qDebug() << "[ERROR] packet hasn`t sent, socket has state:" << m_socket.state();  // пока что добабавим для логов
+
+        return;
+    }
 
     QByteArray packet;
     QDataStream out(&packet, QIODevice::WriteOnly);
@@ -84,6 +110,10 @@ void NetClient::sendPacket(quint8 msgType, const QByteArray &payload){
     out << quint32(packet.size() - sizeof(quint32));
 
     m_socket.write(packet);
+    m_socket.flush();
+
+
+
     m_socket.flush();
 
 

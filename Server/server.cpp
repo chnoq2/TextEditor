@@ -4,6 +4,9 @@
 #include <QDebug>
 #include <QDateTime>
 
+#include <QDebug>
+#include <QDateTime>
+
 
 Server::Server(QObject *parent) : QObject(parent) {}
 
@@ -12,6 +15,7 @@ bool Server::start(quint16 port)
     connect(&m_server, &QTcpServer::newConnection, this, &Server::onNewConnection);
 
     if (!m_server.listen(QHostAddress::Any, port)) {
+        qDebug() << "[Error] Failed to start server:" << m_server.errorString();
         qDebug() << "[Error] Failed to start server:" << m_server.errorString();
         return false;
     }
@@ -60,7 +64,17 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
     {
         Protocol::TextInsertData data;
         in >> data;
+    if (msgType == Protocol::TextInsert)
+    {
+        Protocol::TextInsertData data;
+        in >> data;
 
+        m_document.applyinsert(data);
+
+        qDebug() << "Insert from client ID:" << sender->id()
+                 << "at pos:" << data.get_position()
+                 << "text:" << data.get_text()
+                 << "[Images:" << data.get_images_count() << ", Tools:" << data.get_tools_count()<< "]";
         m_document.applyinsert(data);
 
         qDebug() << "Insert from client ID:" << sender->id()
@@ -80,9 +94,23 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
         qDebug() << "Delete from client ID:" << sender->id()
                  << "at pos:" << data.get_position()
                  << "len:" << data.get_length();
+    }
+    else if (msgType == Protocol::TextDelete)
+    {
+        Protocol::TextDeleteData data;
+        in >> data;
+        m_document.applyDelete(data);
+
+        qDebug() << "Delete from client ID:" << sender->id()
+                 << "at pos:" << data.get_position()
+                 << "len:" << data.get_length();
 
         broadcast(sender, msgType, payload);
 
+    }
+    else if (msgType == Protocol::CursorMove)
+    {
+        qDebug() << "Cursor move event from client ID:" << sender->id();
     }
     else if (msgType == Protocol::CursorMove)
     {
@@ -142,3 +170,4 @@ void Server::broadcast(ClientHandler *except, quint8 msgType, const QByteArray &
         }
     }
 }
+

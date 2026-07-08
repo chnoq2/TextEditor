@@ -17,6 +17,9 @@ HEADERS += \
     netclient.h \
     protocol/document.h \
     protocol/protocol.h
+    netclient.h \
+    protocol/document.h \
+    protocol/protocol.h
 
 FORMS += \
     mainwindow.ui
