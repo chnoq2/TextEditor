@@ -13,28 +13,36 @@
 #include <QCoreApplication>
 #include <QDir>
 
-MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow)
-{
-MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow)
-{
+MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
 
     m_client = new NetClient(this);
 
     this->setWindowIcon(QIcon(":/source/icon_app.png"));
 
+    m_localTypingTimer = new QTimer(this);
+    m_localTypingTimer->setSingleShot(true);
+    m_localTypingTimer->setInterval(2000);
+    connect(m_localTypingTimer, &QTimer::timeout, this, &MainWindow::sendTypingStopIfIdle);
 
     connect(m_client, &NetClient::textInserted, this, &MainWindow::onTextInserted);
     connect(m_client, &NetClient::textDeleted, this, &MainWindow::onTextDeleted);
     connect(m_client, &NetClient::documentSnapshotReceived, this, &MainWindow::onSnapshotReceived);
     connect(ui->textEdit, &QTextEdit::textChanged, this, &MainWindow::onTextChanged);
-    connect(m_client, &NetClient::connected, this, [this]() {ui->statusLabel->setText("Подключено"); ui->statusLabel->setStyleSheet("color: green;");});
+
+    connect(m_client, &NetClient::userListUpdated, this, &MainWindow::onUserListUpdated);
+    connect(m_client, &NetClient::typingStarted, this, &MainWindow::onTypingStarted);
+    connect(m_client, &NetClient::typingStopped, this, &MainWindow::onTypingStopped);
+
+    connect(m_client, &NetClient::connected, this, [this]() {
+        ui->statusLabel->setText("Подключено");
+        ui->statusLabel->setStyleSheet("color: green;");
+        m_client->sendSetName(ui->userLineEdit->text());
+    });
 }
 
-MainWindow::~MainWindow()
-{
-MainWindow::~MainWindow()
-{
+
+MainWindow::~MainWindow(){
     delete ui;
 }
 
