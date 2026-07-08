@@ -64,36 +64,15 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
     {
         Protocol::TextInsertData data;
         in >> data;
-    if (msgType == Protocol::TextInsert)
-    {
-        Protocol::TextInsertData data;
-        in >> data;
 
         m_document.applyinsert(data);
 
         qDebug() << "Insert from client ID:" << sender->id()
                  << "at pos:" << data.get_position()
                  << "text:" << data.get_text()
-                 << "[Images:" << data.get_images_count() << ", Tools:" << data.get_tools_count()<< "]";
-        m_document.applyinsert(data);
-
-        qDebug() << "Insert from client ID:" << sender->id()
-                 << "at pos:" << data.get_position()
-                 << "text:" << data.get_text()
-                 << "[Images:" << data.get_images_count() << ", Tools:" << data.get_tools_count()<< "]";
+                 << "[Images:" << data.get_images_count() << ", Tools:" << data.get_tools_count() << "]";
 
         broadcast(sender, msgType, payload);
-
-    }
-    else if (msgType == Protocol::TextDelete)
-    {
-        Protocol::TextDeleteData data;
-        in >> data;
-        m_document.applyDelete(data);
-
-        qDebug() << "Delete from client ID:" << sender->id()
-                 << "at pos:" << data.get_position()
-                 << "len:" << data.get_length();
     }
     else if (msgType == Protocol::TextDelete)
     {
@@ -106,24 +85,21 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
                  << "len:" << data.get_length();
 
         broadcast(sender, msgType, payload);
-
-    }
-    else if (msgType == Protocol::CursorMove)
-    {
-        qDebug() << "Cursor move event from client ID:" << sender->id();
     }
     else if (msgType == Protocol::CursorMove)
     {
         qDebug() << "Cursor move event from client ID:" << sender->id();
         broadcast(sender, msgType, payload);
     }
-    else if (msgType == Protocol::SetName) {
+    else if (msgType == Protocol::SetName)
+    {
         QString name;
         in >> name;
         sender->setName(name);
         broadcastUserList();
     }
-    else if (msgType == Protocol::TypingStart || msgType == Protocol::TypingStop) {
+    else if (msgType == Protocol::TypingStart || msgType == Protocol::TypingStop)
+    {
         broadcastFrom(sender, static_cast<Protocol::MessageType>(msgType));
     }
 }
