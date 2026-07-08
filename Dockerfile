@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 COPY protocol/protocol.h ./Server/protocol.h
-COPY procotol/document.h ./Server/document.h
+COPY protocol/document.h ./Server/document.h
 COPY Server/ ./Server/
 
 WORKDIR /app/Server
