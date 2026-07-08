@@ -1,2 +1,4 @@
 build/
 .qtcreator/
+Makefile
+.qtc_clangd/

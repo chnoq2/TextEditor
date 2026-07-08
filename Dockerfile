@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY protocol.h ./Server/protocol.h
+COPY protocol/protocol.h ./Server/protocol.h
+COPY procotol/document.h ./Server/document.h
 COPY Server/ ./Server/
 
 WORKDIR /app/Server

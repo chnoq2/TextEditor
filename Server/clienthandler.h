@@ -14,6 +14,11 @@ public:
     void sendPacket(quint8 msgType, const QByteArray &payload);
     int id() const { return m_id; }
 
+    void setRole(Protocol::UserRole role) { m_role = role; }
+    void setName(const QString &name) { m_name = name; }
+    Protocol::UserRole role() const { return m_role; }
+    QString name() const { return m_name; }
+
 signals:
     void packetReceived(ClientHandler *sender, quint8 msgType, QByteArray payload);
     void disconnected(ClientHandler *sender);
@@ -26,6 +31,8 @@ private:
     QTcpSocket *m_socket;
     quint32 m_nextBlockSize;
     int m_id;
+    QString m_name;
+    Protocol::UserRole m_role = Protocol::Reader;
     static int s_nextId;
 };
 

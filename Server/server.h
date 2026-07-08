@@ -5,6 +5,7 @@
 #include <QTcpServer>
 #include <QList>
 #include "clienthandler.h"
+#include "document.h"
 
 class Server : public QObject
 {
@@ -23,7 +24,10 @@ private:
 
     QTcpServer m_server;
     QList<ClientHandler*> m_clients;
-    QString m_document;
+    document_standard m_document;
+    // было QString m_document;
+    void broadcastUserList();
+    void broadcastFrom(ClientHandler*, Protocol::MessageType);
 };
 
 #endif

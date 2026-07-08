@@ -4,8 +4,9 @@
 #include <QObject>
 #include <QString>
 #include <QTcpSocket>
-#include "protocol.h"
+#include "protocol/protocol.h"
 #include <QDataStream>
+#include <QDebug>
 
 class NetClient: public QObject
 {
@@ -16,6 +17,8 @@ class NetClient: public QObject
     Protocol::MessageType msgType;
     Protocol::UserRole m_role;
     quint32 m_nextBlockSize;
+    void handlePacket(quint8 type, const QByteArray &payload);
+    int m_myId = -1;
 
     public:
 
@@ -30,6 +33,13 @@ class NetClient: public QObject
     void connectToServer(const QString &host, quint16 port);
     void sendPacket(quint8 msgType, const QByteArray &payload);
 
+    void sendSetName(const QString &name);
+    void sendTypingStart();
+    void sendTypingStop();
+    int myId() const { return m_myId; }
+
+    Protocol::UserRole role() const {return m_role;}
+
     private slots:
 
     void onConnected();
@@ -42,6 +52,16 @@ class NetClient: public QObject
     void textDeleted(int position, int length);
     void documentSnapshotReceived(const QString &text);
 
+    void packetReceived(quint8 msgType, const QByteArray &payload);
+    void roleAssigned(Protocol::UserRole role);
+    void cursorMoved(int position);
+
+    void connected();
+
+
+    void userListUpdated(const QList<Protocol::ClientInfo> &users);
+    void typingStarted(int userId);
+    void typingStopped(int userId);
 
 };
 
