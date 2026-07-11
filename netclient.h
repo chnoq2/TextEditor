@@ -4,11 +4,9 @@
 #include <QObject>
 #include <QString>
 #include <QTcpSocket>
-#include "protocol/protocol.h"
-#include "protocol/protocol.h"
 #include <QDataStream>
 #include <QDebug>
-#include <QDebug>
+#include "protocol/protocol.h"
 
 class NetClient: public QObject
 {
@@ -28,8 +26,10 @@ class NetClient: public QObject
     ~NetClient();
 
 
-    void sendInsert(int position, const QString &text);
-    void sendDelete(int position, int length);
+    void sendInsert(int paragraphIdx, int posInParagraph, const QString &text,
+    const QList<ImageElement>& images = {}, const QList<TextStyleElement>& styles = {});;
+
+    void sendDelete(int paragraphIdx,int posInParagraph,int length);
     void sendCursorMove(int position);
 
     void connectToServer(const QString &host, quint16 port);
@@ -49,8 +49,8 @@ class NetClient: public QObject
     void onReadyStatus();
 
     signals:
-
-    void textInserted(int position, const QString &text);
+    void textInserted(int paragraphIdx, int posInParagraph, const QString &text,
+                      const QList<ImageElement>& images, const QList<TextStyleElement>& styles);
     void textDeleted(int position, int length);
     void documentSnapshotReceived(const QString &text);
 

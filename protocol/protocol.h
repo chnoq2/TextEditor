@@ -7,6 +7,8 @@
 #include <QByteArray>
 #include <QDataStream>
 
+#include "structures_and_other_elements.h"
+
 namespace Protocol
 {
 enum MessageType : quint8 {
@@ -32,38 +34,47 @@ enum UserStatus : quint8 {
     OnlineStatus = 1
 };
 
+
+
+
 class TextInsertData
 {
 
 private:
-    int m_position = 0;
+    int m_paragraph_index = 0;
+    int m_position_in_paragraph = 0;
     QString m_text;
-    QList<QByteArray> m_images;    // Хранение бинарных изображений в бинарном виде
-    QList<QString> m_usedTools;    // Список примененных инструментов
+    QList<ImageElement> m_images;    // Хранение бинарных изображений в бинарном виде
+    QList<TextStyleElement> m_styles;    // Список примененных инструментов
 public:
     TextInsertData() = default;
 
-    TextInsertData(int pos, const QString& text, const QList<QByteArray>& images, const QList<QString>& tools)
-        : m_position(pos), m_text(text), m_images(images), m_usedTools(tools) {}
+    TextInsertData(int paragraphIdx, int posInParagraph, const QString& text,
+                   const QList<ImageElement>& images, const QList<TextStyleElement>& styles)
+        : m_paragraph_index(paragraphIdx), m_position_in_paragraph(posInParagraph),
+        m_text(text), m_images(images), m_styles(styles) {}
 
 
-    int get_position() const { return m_position; }
+    int get_paragraph_index() const { return m_paragraph_index; }
+    int get_position_in_paragraph() const { return m_position_in_paragraph; }
     QString get_text() const { return m_text; }
-    QList<QByteArray> get_images() const { return m_images; }
-    QList<QString> get_usedTools() const { return m_usedTools; }
+    QList<ImageElement> get_images() const { return m_images; }
+    QList<TextStyleElement> get_styles() const { return m_styles; }
 
     int get_textLength() const { return m_text.length(); }
     int get_images_count() const { return m_images.size(); }
-    int get_tools_count() const { return m_usedTools.size(); }
+    int get_tools_count() const { return m_styles.size(); }
 
 
     friend QDataStream &operator<<(QDataStream &out, const TextInsertData &data) {
-        out << data.m_position << data.m_text << data.m_images << data.m_usedTools;
+        out << data.m_paragraph_index << data.m_position_in_paragraph
+            << data.m_text << data.m_images << data.m_styles;
         return out;
     }
 
     friend QDataStream &operator>>(QDataStream &in, TextInsertData &data) {
-        in >> data.m_position >> data.m_text >> data.m_images >> data.m_usedTools;
+        in >> data.m_paragraph_index >> data.m_position_in_paragraph
+            >> data.m_text >> data.m_images >> data.m_styles;
         return in;
     }
 
@@ -75,34 +86,28 @@ class TextDeleteData
 {
 
 private:
-    int m_position = 0;
+    int m_paragraph_index = 0;
+    int m_position_in_paragraph = 0;
     int m_length = 0;
-    QList<QByteArray> m_images;    // Хранение бинарных изображений в бинарном виде
-    QList<QString> m_usedTools;    // Список примененных инструментов
-
 public:
 
     TextDeleteData() = default;
+    TextDeleteData(int paragraphIdx, int posInParagraph, int length)
+        : m_paragraph_index(paragraphIdx), m_position_in_paragraph(posInParagraph), m_length(length) {}
 
-    TextDeleteData(int pos, int length, const QList<QByteArray>& images, const QList<QString>& tools)
-        : m_position(pos), m_length(length), m_images(images), m_usedTools(tools) {}
+    int get_paragraph_index() const { return m_paragraph_index; }
+    int get_position_in_paragraph() const { return m_position_in_paragraph; }
+    int get_length() const { return m_length;}
 
-    int get_position() const { return m_position; }
-    int get_length() const { return m_length; }
-    QList<QByteArray> get_images() const { return m_images; }
-    QList<QString> get_usedTools() const { return m_usedTools; }
-
-    int get_images_count() const { return m_images.size(); }
-    int get_toolsCount() const { return m_usedTools.size(); }
 
     friend QDataStream &operator<<(QDataStream &out, const TextDeleteData &data) {
-        out << data.m_position << data.m_length << data.m_images << data.m_usedTools;
-        return out;
-    }
+            out << data.m_paragraph_index << data.m_position_in_paragraph << data.m_length;
+            return out;
+        }
     friend QDataStream &operator>>(QDataStream &in, TextDeleteData &data) {
-        in >> data.m_position >> data.m_length >> data.m_images >> data.m_usedTools;
-        return in;
-    }
+            in >> data.m_paragraph_index >> data.m_position_in_paragraph >> data.m_length;
+            return in;
+        }
 
 };
 
@@ -154,6 +159,6 @@ public:
 };
 
 
-} // end namespace
+}; // end namespace
 
 #endif // PROTOCOL_H

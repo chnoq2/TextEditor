@@ -1,4 +1,7 @@
 QT += core gui network widgets
+QT += core-private
+QT += gui-private
+
 
 CONFIG += c++17
 CONFIG -= debug_and_release
@@ -16,7 +19,8 @@ HEADERS += \
     mainwindow.h \
     netclient.h \
     protocol/document.h \
-    protocol/protocol.h
+    protocol/protocol.h \
+    protocol/structures_and_other_elements.h
 
 FORMS += \
     mainwindow.ui

@@ -16,36 +16,32 @@ void NetClient::connectToServer(const QString &host, quint16 port){
     m_socket.connectToHost(host,port);
 }
 
-void NetClient::sendInsert(int position, const QString &text)
+void NetClient::sendInsert(int paragraphIdx, int posInParagraph, const QString &text,
+                           const QList<ImageElement>& images, const QList<TextStyleElement>& styles)
 {
-    qDebug() << "[SENDING] sendInsert called. Position:" << position << "Text:" << text;  // пока что добабавим для логов
+    qDebug() << "[SENDING] sendInsert called. Paragaph:" << paragraphIdx << "Pos:" << posInParagraph  << "text:" << text;  // пока что добабавим для логов
 
 
     QByteArray buffer;
     QDataStream out(&buffer, QIODevice::WriteOnly);
 
-    // из за обновлеленного протокола, добавляем новые параметрры для функции
-    // где первые {} это изображения в виде массива и  вторые {} использованные инструменты
 
-    Protocol::TextInsertData data(position, text,{},{});
+    Protocol::TextInsertData data(paragraphIdx, posInParagraph, text, images, styles);
     out << data;
     sendPacket(Protocol::TextInsert, buffer);
 
 }
 
-void NetClient::sendDelete(int position, int length){
-
-    qDebug() << "[SENDING] sendDelete called. Position:" << position << "Length:" << length; // пока что добабавим для логов
+void NetClient::sendDelete(int paragraphIdx, int posInParagraph, int length){
 
 
-    qDebug() << "[SENDING] sendDelete called. Position:" << position << "Length:" << length; // пока что добабавим для логов
+
+    qDebug() << "[SENDING] sendDelete called. Paragraph:" << paragraphIdx << "Pos:" << posInParagraph << "Length" << length; // пока что добабавим для логов
 
     QByteArray buffer;
     QDataStream out(&buffer, QIODevice::WriteOnly);
 
-    // из за обновлеленного протокола, добавляем новые параметрры для функции
-    // где первые {} это изображения в виде массива и  вторые {} использованные инструменты
-    Protocol::TextDeleteData data(position, length,{},{});
+    Protocol::TextDeleteData data(paragraphIdx, posInParagraph, length);
     out << data;
 
     sendPacket(Protocol::TextDelete, buffer);
@@ -56,7 +52,6 @@ void NetClient::sendDelete(int position, int length){
 void NetClient::sendCursorMove(int position){
     QByteArray buffer;
     QDataStream out(&buffer, QIODevice::WriteOnly);
-
 
     out << position;
 
@@ -120,8 +115,7 @@ void NetClient::onReadyStatus()
     }
 }
 
-void NetClient::handlePacket(quint8 type, const QByteArray &payload)
-{
+void NetClient::handlePacket(quint8 type, const QByteArray &payload) {
     QDataStream in(payload);
 
     switch (type) {
@@ -135,15 +129,24 @@ void NetClient::handlePacket(quint8 type, const QByteArray &payload)
     case Protocol::TextInsert: {
         Protocol::TextInsertData data;
         in >> data;
-        emit textInserted(data.get_position(), data.get_text());
-        qDebug() << "[RECV] Insert at" << data.get_position() << ":" << data.get_text();
+
+        // Извлекаем все новые поля и отправляем их через сигнал в графический текстовый редактор (UI)
+        emit textInserted(data.get_paragraph_index(), data.get_position_in_paragraph(),
+                          data.get_text(), data.get_images(), data.get_styles());
+
+        qDebug() << "[RECV] Insert at Paragraph:" << data.get_paragraph_index()
+                 << "Pos:" << data.get_position_in_paragraph() << ":" << data.get_text();
         break;
     }
     case Protocol::TextDelete: {
         Protocol::TextDeleteData data;
         in >> data;
-        emit textDeleted(data.get_position(), data.get_length());
-        qDebug() << "[RECV] Delete at" << data.get_position() << "len:" << data.get_length();
+
+        // Отправляем сигнал удаления текста для конкретного абзаца
+        emit textDeleted(data.get_paragraph_index(), data.get_position_in_paragraph(), data.get_length());
+
+        qDebug() << "[RECV] Delete at Paragraph:" << data.get_paragraph_index()
+                 << "Pos:" << data.get_position_in_paragraph() << "len:" << data.get_length();
         break;
     }
     case Protocol::CursorMove: {
