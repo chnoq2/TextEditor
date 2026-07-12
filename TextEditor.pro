@@ -3,6 +3,7 @@ QT += core-private
 QT += gui-private
 
 
+
 CONFIG += c++17
 CONFIG -= debug_and_release
 
@@ -13,17 +14,20 @@ win32-msvc {
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
-    netclient.cpp
+    netclient.cpp \
+    settingsdialog.cpp
 
 HEADERS += \
     mainwindow.h \
     netclient.h \
+    protocol/supporrtive_structures_modules.h \
+    settingsdialog.h \
     protocol/document.h \
-    protocol/protocol.h \
-    protocol/structures_and_other_elements.h
+    protocol/protocol.h
 
 FORMS += \
-    mainwindow.ui
+    mainwindow.ui \
+    settingsdialog.ui
 
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin

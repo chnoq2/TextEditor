@@ -25,8 +25,10 @@ private:
 
     QTcpServer m_server;
     QList<ClientHandler*> m_clients;
+
     document_standard m_document;
-    // было QString m_document;
+    bool m_hasDocument = false;
+
     void broadcastUserList();
     void broadcastFrom(ClientHandler*, Protocol::MessageType);
 };

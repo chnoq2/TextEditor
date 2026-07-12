@@ -5,6 +5,7 @@ NetClient::NetClient(QObject *parent) : QObject(parent), m_socket(this), m_nextB
 
     connect(&m_socket, &QTcpSocket::connected, this, &NetClient::onConnected);
     connect(&m_socket, &QTcpSocket::disconnected, this, &NetClient::onDisconnected);
+    connect(&m_socket, &QTcpSocket::errorOccurred, this, &NetClient::onSocketError);
     connect(&m_socket, &QTcpSocket::readyRead, this , &NetClient::onReadyStatus);
 }
 
@@ -16,27 +17,31 @@ void NetClient::connectToServer(const QString &host, quint16 port){
     m_socket.connectToHost(host,port);
 }
 
-void NetClient::sendInsert(int paragraphIdx, int posInParagraph, const QString &text,
-                           const QList<ImageElement>& images, const QList<TextStyleElement>& styles)
-{
-    qDebug() << "[SENDING] sendInsert called. Paragaph:" << paragraphIdx << "Pos:" << posInParagraph  << "text:" << text;  // пока что добабавим для логов
+void NetClient::disconnectFromServer(){
+    m_socket.disconnectFromHost();
+}
 
+void NetClient::sendInsert(int paragraphIdx,int position_in_paragraph, const QString &text,
+const QList<ImageElement>& images, const QList<TextStyleElement>& styles)
+{
+    qDebug() << "[SENDING] sendInsert called. paragraph :" << paragraphIdx
+             << "position in paragraph :" << position_in_paragraph
+             << "text :" << text;
 
     QByteArray buffer;
     QDataStream out(&buffer, QIODevice::WriteOnly);
 
-
-    Protocol::TextInsertData data(paragraphIdx, posInParagraph, text, images, styles);
+    Protocol::TextInsertData data(paragraphIdx, position_in_paragraph,text,images,styles);
     out << data;
+
     sendPacket(Protocol::TextInsert, buffer);
 
 }
 
-void NetClient::sendDelete(int paragraphIdx, int posInParagraph, int length){
-
-
-
-    qDebug() << "[SENDING] sendDelete called. Paragraph:" << paragraphIdx << "Pos:" << posInParagraph << "Length" << length; // пока что добабавим для логов
+void NetClient::sendDelete(int paragraphIdx, int posInParagraph, int length)
+{
+    qDebug() << "[SENDING] sendDelete called. Paragraph:" << paragraphIdx
+             << "Position in paragraph:" << posInParagraph << "Length:" << length;
 
     QByteArray buffer;
     QDataStream out(&buffer, QIODevice::WriteOnly);
@@ -45,13 +50,12 @@ void NetClient::sendDelete(int paragraphIdx, int posInParagraph, int length){
     out << data;
 
     sendPacket(Protocol::TextDelete, buffer);
-    sendPacket(Protocol::TextDelete, buffer);
-
 }
 
 void NetClient::sendCursorMove(int position){
     QByteArray buffer;
     QDataStream out(&buffer, QIODevice::WriteOnly);
+
 
     out << position;
 
@@ -91,6 +95,13 @@ void NetClient::onConnected(){
 void NetClient::onDisconnected(){
     m_nextBlockSize = 0;
     qDebug() << "Disconnected";
+    emit disconnected();
+}
+
+void NetClient::onSocketError(QAbstractSocket::SocketError error){
+    Q_UNUSED(error);
+    qDebug() << "[ERROR] socket error:" << m_socket.errorString();
+    emit connectionError(m_socket.errorString());
 }
 
 void NetClient::onReadyStatus()
@@ -115,25 +126,20 @@ void NetClient::onReadyStatus()
     }
 }
 
-void NetClient::handlePacket(quint8 type, const QByteArray &payload) {
+void NetClient::handlePacket(quint8 type, const QByteArray &payload)
+{
     QDataStream in(payload);
 
     switch (type) {
     case Protocol::DockSnapShot: {
-        document_standard doc;
-        in >> doc;
-        emit documentSnapshotReceived(doc.get_text());
-        qDebug() << "[RECV] Snapshot received, length:" << doc.get_length();
+        emit documentSnapshotReceived(payload);
         break;
     }
     case Protocol::TextInsert: {
         Protocol::TextInsertData data;
         in >> data;
-
-        // Извлекаем все новые поля и отправляем их через сигнал в графический текстовый редактор (UI)
-        emit textInserted(data.get_paragraph_index(), data.get_position_in_paragraph(),
-                          data.get_text(), data.get_images(), data.get_styles());
-
+        emit textInserted(data.get_paragraph_index(),data.get_position_in_paragraph(),data.get_text(),
+                          data.get_images(), data.get_styles());
         qDebug() << "[RECV] Insert at Paragraph:" << data.get_paragraph_index()
                  << "Pos:" << data.get_position_in_paragraph() << ":" << data.get_text();
         break;
@@ -141,10 +147,7 @@ void NetClient::handlePacket(quint8 type, const QByteArray &payload) {
     case Protocol::TextDelete: {
         Protocol::TextDeleteData data;
         in >> data;
-
-        // Отправляем сигнал удаления текста для конкретного абзаца
-        emit textDeleted(data.get_paragraph_index(), data.get_position_in_paragraph(), data.get_length());
-
+   emit textDeleted(data.get_paragraph_index(), data.get_position_in_paragraph(), data.get_length());
         qDebug() << "[RECV] Delete at Paragraph:" << data.get_paragraph_index()
                  << "Pos:" << data.get_position_in_paragraph() << "len:" << data.get_length();
         break;

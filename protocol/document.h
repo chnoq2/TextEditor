@@ -1,23 +1,8 @@
 #ifndef DOCUMENT_H
 #define DOCUMENT_H
 
-#include <QString>
-#include <QList>
-#include <QByteArray>
-#include <QMap>
-#include <QDataStream>
-#include <vector>
-
+#include "supporrtive_structures_modules.h"
 #include "protocol.h"
-#include "qdebug.h"
-#include <private/qzipreader_p.h>
-
-// добавлены новые заголовки
-#include <QFile>
-#include <QXmlStreamReader>
-#include <QFileDialog>
-
-#include "structures_and_other_elements.h"
 
 class document_standard
 {
@@ -90,6 +75,22 @@ public:
 
     QString get_text() const { return m_text; }
     int get_length() const { return m_text.length(); }
+
+    const std::vector<QString>& get_full_text() const {return full_text;}
+
+    QList<ImageElement> get_images_for_paragraph(int paragraphIdx) const
+    {
+        return m_paragraph_images.value(paragraphIdx,QList<ImageElement>());
+    }
+
+    QList<TextStyleElement> get_styles_paragraph(int paragrapIdx) const
+    {
+        return m_paragraph_styles.value(paragrapIdx,QList<TextStyleElement>());
+    }
+
+    size_t get_paragraphs_count() const {return full_text.size();}
+
+
 
     friend QDataStream &operator<<(QDataStream &out, const document_standard &doc)
     {

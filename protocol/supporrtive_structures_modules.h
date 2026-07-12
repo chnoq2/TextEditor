@@ -1,11 +1,32 @@
-#ifndef STRUCTURES_AND_OTHER_ELEMENTS_H
-#define STRUCTURES_AND_OTHER_ELEMENTS_H
+#ifndef SUPPORRTIVE_STRUCTURES_MODULES_H
+#define SUPPORRTIVE_STRUCTURES_MODULES_H
 
+
+// эти инклуды для трез файлов - document.h protocol.h supportive_structure_modules
 #include <QString>
+#include <QList>
+#include <QMap>
+#include <vector>
 #include <QByteArray>
+#include <QFile>
+#include <QtGlobal>
+
 #include <QDataStream>
+#include <QXmlStreamReader>
+#include <QFileDialog>
+
+#include "qdebug.h"
+#include <private/qzipreader_p.h>
+#include <private/qzipreader_p.h>
+
+// добавлены новые заголовки
+#include <QFile>
+#include <QXmlStreamReader>
+#include <QFileDialog>
+#include <QTimer>
 
 
+#include <QDebug>
 
 struct ImageElement
 {
@@ -23,6 +44,15 @@ struct ImageElement
     {
         in >> img.index_inside_vector >> img.resolution >> img.binary_data;
         return in;
+    }
+
+    friend QDebug operator<<(QDebug dbg, const ImageElement &img)
+    {
+        QDebugStateSaver saver(dbg);
+        dbg.nospace() << "ImageElement(Index: " << img.index_inside_vector
+                      << ", Res: " << img.resolution
+                      << ", Bytes: " << img.binary_data.size() << ")";
+        return dbg;
     }
 
 };
@@ -50,4 +80,4 @@ struct TextStyleElement
 };
 
 
-#endif // STRUCTURES_AND_OTHER_ELEMENTS_H
+#endif // SUPPORRTIVE_STRUCTURES_MODULES_H

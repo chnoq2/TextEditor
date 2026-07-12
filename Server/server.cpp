@@ -16,7 +16,6 @@ bool Server::start(quint16 port)
 
     if (!m_server.listen(QHostAddress::Any, port)) {
         qDebug() << "[Error] Failed to start server:" << m_server.errorString();
-        qDebug() << "[Error] Failed to start server:" << m_server.errorString();
         return false;
     }
     qDebug() << "Server started on port" << port;
@@ -45,10 +44,6 @@ void Server::onNewConnection()
     roleOut << static_cast<quint8>(role);
     client->sendPacket(Protocol::AssignRole, rolePayload);
 
-    QByteArray docPayload;
-    QDataStream docOut(&docPayload, QIODevice::WriteOnly);
-    docOut << m_document;
-    client->sendPacket(Protocol::DockSnapShot, docPayload);
 
     broadcastUserList();
     qDebug() << "Sent DockSnapShot to client ID:" << client->id() << "Current doc length:" << m_document.get_length();
@@ -68,9 +63,9 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
         m_document.applyinsert(data);
 
         qDebug() << "Insert from client ID:" << sender->id()
-                 << "at pos:" << data.get_position()
-                 << "text:" << data.get_text()
-                 << "[Images:" << data.get_images_count() << ", Tools:" << data.get_tools_count() << "]";
+                 << "at paragraph:" << data.get_paragraph_index()
+                 << "position in paragraph:" << data.get_position_in_paragraph()
+                << "[Images:" << data.get_images_count() << ", Tools:" << data.get_tools_count() << "]";
 
         broadcast(sender, msgType, payload);
     }
@@ -81,7 +76,8 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
         m_document.applyDelete(data);
 
         qDebug() << "Delete from client ID:" << sender->id()
-                 << "at pos:" << data.get_position()
+                 << "at paragraph:" << data.get_paragraph_index()
+                 << "pos in paragraph:" << data.get_position_in_paragraph()
                  << "len:" << data.get_length();
 
         broadcast(sender, msgType, payload);
@@ -97,10 +93,34 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
         in >> name;
         sender->setName(name);
         broadcastUserList();
+
+        if (m_hasDocument)
+        {
+            QByteArray docPayload;
+            QDataStream docOut(&docPayload, QIODevice::WriteOnly);
+            docOut << m_document;
+
+            sender->sendPacket(Protocol::DockSnapShot, docPayload);
+            qDebug() << "Sent current document to newly authorized client ID:" << sender->id();
+        }
     }
+
     else if (msgType == Protocol::TypingStart || msgType == Protocol::TypingStop)
     {
         broadcastFrom(sender, static_cast<Protocol::MessageType>(msgType));
+    }
+    else if (msgType == Protocol::DockSnapShot)
+    {
+        in >> m_document;
+        m_hasDocument = true;
+
+        qDebug() << "Received new document snapshot from client ID:" << sender->id()
+                 << "Length:" << m_document.get_length();
+        QByteArray forwardPayload;
+        QDataStream out(&forwardPayload, QIODevice::WriteOnly);
+        out << m_document;
+
+        broadcast(sender, Protocol::DockSnapShot, forwardPayload);
     }
 }
 

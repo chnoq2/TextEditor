@@ -1,13 +1,7 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include <QtGlobal>
-#include <QString>
-#include <QList>
-#include <QByteArray>
-#include <QDataStream>
-
-#include "structures_and_other_elements.h"
+#include "supporrtive_structures_modules.h"
 
 namespace Protocol
 {
@@ -33,9 +27,6 @@ enum UserStatus : quint8 {
     LeftStatus   = 0,
     OnlineStatus = 1
 };
-
-
-
 
 class TextInsertData
 {
@@ -101,13 +92,13 @@ public:
 
 
     friend QDataStream &operator<<(QDataStream &out, const TextDeleteData &data) {
-            out << data.m_paragraph_index << data.m_position_in_paragraph << data.m_length;
-            return out;
-        }
+        out << data.m_paragraph_index << data.m_position_in_paragraph << data.m_length;
+        return out;
+    }
     friend QDataStream &operator>>(QDataStream &in, TextDeleteData &data) {
-            in >> data.m_paragraph_index >> data.m_position_in_paragraph >> data.m_length;
-            return in;
-        }
+        in >> data.m_paragraph_index >> data.m_position_in_paragraph >> data.m_length;
+        return in;
+    }
 
 };
 

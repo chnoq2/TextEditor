@@ -29,7 +29,7 @@ private slots:
 
 private:
     QTcpSocket *m_socket;
-    quint32 m_nextBlockSize;
+    quint32 m_nextBlockSize = 0;
     int m_id;
     QString m_name;
     Protocol::UserRole m_role = Protocol::Reader;
