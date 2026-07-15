@@ -2,11 +2,11 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QTextCharFormat>
+#include <QFont>
 
 #include "netclient.h"
 #include "protocol/document.h"
-
-#include "window_document.h"
 
 QT_BEGIN_NAMESPACE namespace Ui {class MainWindow;}
 QT_END_NAMESPACE
@@ -38,7 +38,23 @@ private slots:
     void sendTypingStopIfIdle();
 
 
-    void on_choose_document_clicked();
+    void on_actionOpenFile_triggered();
+    void on_actionSaveFile_triggered();
+
+    void on_boldButton_toggled(bool checked);
+    void on_italicButton_toggled(bool checked);
+    void on_underlineButton_toggled(bool checked);
+    void on_fontComboBox_currentFontChanged(const QFont &font);
+    void on_fontSizeComboBox_currentTextChanged(const QString &text);
+    void on_alignLeftButton_clicked();
+    void on_alignCenterButton_clicked();
+    void on_alignRightButton_clicked();
+    void on_alignJustifyButton_clicked();
+    void on_undoButton_clicked();
+    void on_redoButton_clicked();
+
+    void onCurrentCharFormatChanged(const QTextCharFormat &format);
+    void onTextEditCursorPositionChanged();
 
 private:
     void loadConnectionSettings();

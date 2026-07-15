@@ -3,9 +3,7 @@
 #include <QDataStream>
 #include <QDebug>
 #include <QDateTime>
-
-#include <QDebug>
-#include <QDateTime>
+#include <QPointer>
 
 
 Server::Server(QObject *parent) : QObject(parent) {}
@@ -24,8 +22,8 @@ bool Server::start(quint16 port)
 
 void Server::onNewConnection()
 {
-    QTcpSocket *socket = m_server.nextPendingConnection();
-    ClientHandler *client = new ClientHandler(socket, this);
+    QPointer<QTcpSocket> socket = m_server.nextPendingConnection();
+    QPointer<ClientHandler> client = new ClientHandler(socket, this);
 
     connect(client, &ClientHandler::packetReceived, this, &Server::onPacketReceived);
     connect(client, &ClientHandler::disconnected, this, &Server::onClientDisconnected);
@@ -134,7 +132,7 @@ void Server::onClientDisconnected(ClientHandler *sender)
 void Server::broadcastUserList()
 {
     QList<Protocol::ClientInfo> infos;
-    for (ClientHandler *c : m_clients)
+    for (const QPointer<ClientHandler> &c : m_clients)
         infos.append(Protocol::ClientInfo(c->id(), c->name(), c->role()));
 
     Protocol::UserListData data(infos);
@@ -142,7 +140,7 @@ void Server::broadcastUserList()
     QDataStream out(&payload, QIODevice::WriteOnly);
     out << data;
 
-    for (ClientHandler *c : m_clients)
+    for (const QPointer<ClientHandler> &c : m_clients)
         c->sendPacket(Protocol::UserList, payload);
 }
 
@@ -152,7 +150,7 @@ void Server::broadcastFrom(ClientHandler *sender, Protocol::MessageType msgType)
     QDataStream out(&payload, QIODevice::WriteOnly);
     out << sender->id();
 
-    for (ClientHandler *c : m_clients) {
+    for (const QPointer<ClientHandler> &c : m_clients) {
         if (c != sender)
             c->sendPacket(msgType, payload);
     }
@@ -160,7 +158,7 @@ void Server::broadcastFrom(ClientHandler *sender, Protocol::MessageType msgType)
 
 void Server::broadcast(ClientHandler *except, quint8 msgType, const QByteArray &payload)
 {
-    for (ClientHandler *client : m_clients) {
+    for (const QPointer<ClientHandler> &client : m_clients) {
         if (client != except) {
             client->sendPacket(msgType, payload);
         }

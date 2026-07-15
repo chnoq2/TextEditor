@@ -4,8 +4,8 @@
 #include <QObject>
 #include <QTcpServer>
 #include <QList>
+#include <QPointer>
 #include "clienthandler.h"
-#include "document.h"
 #include "document.h"
 
 class Server : public QObject
@@ -24,7 +24,7 @@ private:
     void broadcast(ClientHandler *except, quint8 msgType, const QByteArray &payload);
 
     QTcpServer m_server;
-    QList<ClientHandler*> m_clients;
+    QList<QPointer<ClientHandler>> m_clients;
 
     document_standard m_document;
     bool m_hasDocument = false;

@@ -1,9 +1,13 @@
 #include <QTextCursor>
+#include <QTextCharFormat>
+#include <QFont>
+#include <QButtonGroup>
 #include <QIcon>
 #include <QCoreApplication>
 #include <QDir>
 #include <QTimer>
 #include <QSettings>
+#include <algorithm>
 
 #include "mainwindow.h"
 #include "protocol/document.h"
@@ -75,7 +79,19 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
         ui->statusLabel->setStyleSheet("color: red;");
     });
 
+    auto *alignGroup = new QButtonGroup(this);
+    alignGroup->setExclusive(true);
+    alignGroup->addButton(ui->alignLeftButton);
+    alignGroup->addButton(ui->alignCenterButton);
+    alignGroup->addButton(ui->alignRightButton);
+    alignGroup->addButton(ui->alignJustifyButton);
 
+    // синхронизация состояния панели форматирования с фактическим форматом под курсором
+    connect(ui->textEdit, &QTextEdit::currentCharFormatChanged, this, &MainWindow::onCurrentCharFormatChanged);
+    connect(ui->textEdit, &QTextEdit::cursorPositionChanged, this, &MainWindow::onTextEditCursorPositionChanged);
+
+    connect(ui->textEdit, &QTextEdit::undoAvailable, ui->undoButton, &QWidget::setEnabled);
+    connect(ui->textEdit, &QTextEdit::redoAvailable, ui->redoButton, &QWidget::setEnabled);
 
 }
 
@@ -93,7 +109,11 @@ void MainWindow::setInitialDocument(const document_standard &doc)
         int p_idx = static_cast<int>(i);
         const QString &p_text = doc.get_full_text()[i];
 
+        // сортируем картинки по сдвигу внутри абзаца, чтобы вставлять их по порядку появления в тексте
         QList<ImageElement> images = doc.get_images_for_paragraph(p_idx);
+        std::sort(images.begin(), images.end(), [](const ImageElement &a, const ImageElement &b) {
+            return a.index_inside_vector < b.index_inside_vector;
+        });
         for (const ImageElement &img : images) {
             QImage qImg = QImage::fromData(img.binary_data);
             if (!qImg.isNull()) {
@@ -102,14 +122,40 @@ void MainWindow::setInitialDocument(const document_standard &doc)
             }
         }
 
-         cursor.insertText(p_text);
+        const QList<TextStyleElement> styles = doc.get_styles_paragraph(p_idx);
+        auto formatAt = [&styles](int pos) {
+            QTextCharFormat fmt;
+            for (const TextStyleElement &style : styles) {
+                if (pos >= style.index_inside_vector && pos < style.index_inside_vector + style.length) {
+                    if (style.is_bold) fmt.setFontWeight(QFont::Bold);
+                    if (!style.font_name.isEmpty()) fmt.setFontFamily(style.font_name);
+                }
+            }
+            return fmt;
+        };
 
-        for (const ImageElement &img : images) {
-            QTextCursor imgCursor = cursor;
-            imgCursor.insertBlock();
-            QString urlStr = QString("internal://img_%1_%2.png").arg(p_idx).arg(img.index_inside_vector);
-            imgCursor.insertImage(urlStr);
+        int textPos = 0;
+        int imgIdx = 0;
+        while (textPos < p_text.length() || imgIdx < images.size()) {
+            if (imgIdx < images.size() && images[imgIdx].index_inside_vector <= textPos) {
+                QString urlStr = QString("internal://img_%1_%2.png").arg(p_idx).arg(images[imgIdx].index_inside_vector);
+                cursor.setCharFormat(QTextCharFormat());
+                cursor.insertImage(urlStr);
+                imgIdx++;
+                continue;
+            }
+
+            int limit = (imgIdx < images.size()) ? images[imgIdx].index_inside_vector : p_text.length();
+            QTextCharFormat runFormat = formatAt(textPos);
+            int runEnd = textPos + 1;
+            while (runEnd < limit && formatAt(runEnd) == runFormat) {
+                runEnd++;
+            }
+            cursor.setCharFormat(runFormat);
+            cursor.insertText(p_text.mid(textPos, runEnd - textPos));
+            textPos = runEnd;
         }
+        cursor.setCharFormat(QTextCharFormat()); // сброс формата перед следующим абзацем
 
         if (i < total_paragraphs - 1) {
             cursor.insertBlock();
@@ -259,7 +305,8 @@ void MainWindow::onTypingStopped(int userId)
     }
 }
 
-void MainWindow::on_choose_document_clicked()
+// пункт "Открыть файл..." в выпадающем меню кнопки "Файл" риббона (раньше была отдельная кнопка)
+void MainWindow::on_actionOpenFile_triggered()
 {
     QString filePath = QFileDialog::getOpenFileName(this, tr("Открыть docx"), "", tr("Документы (*.docx *.doc)"));
     if (filePath.isEmpty()) return;
@@ -277,4 +324,130 @@ void MainWindow::on_choose_document_clicked()
     } else {
         QMessageBox::critical(this, tr("Ошибка"), tr("Не удалось распарсить файл!"));
     }
+}
+
+void MainWindow::on_actionSaveFile_triggered()
+{
+    QMessageBox::information(this, tr("Сохранение"), tr("Сохранение документа скоро будет доступно."));
+}
+
+// Панель форматирования (Главная)
+void MainWindow::on_boldButton_toggled(bool checked)
+{
+    QTextCharFormat fmt;
+    fmt.setFontWeight(checked ? QFont::Bold : QFont::Normal);
+    ui->textEdit->mergeCurrentCharFormat(fmt);
+}
+
+void MainWindow::on_italicButton_toggled(bool checked)
+{
+    QTextCharFormat fmt;
+    fmt.setFontItalic(checked);
+    ui->textEdit->mergeCurrentCharFormat(fmt);
+}
+
+void MainWindow::on_underlineButton_toggled(bool checked)
+{
+    QTextCharFormat fmt;
+    fmt.setFontUnderline(checked);
+    ui->textEdit->mergeCurrentCharFormat(fmt);
+}
+
+void MainWindow::on_fontComboBox_currentFontChanged(const QFont &font)
+{
+    QTextCharFormat fmt;
+    fmt.setFontFamily(font.family());
+    ui->textEdit->mergeCurrentCharFormat(fmt);
+}
+
+void MainWindow::on_fontSizeComboBox_currentTextChanged(const QString &text)
+{
+    bool ok = false;
+    qreal size = text.toDouble(&ok);
+    if (ok && size > 0) {
+        QTextCharFormat fmt;
+        fmt.setFontPointSize(size);
+        ui->textEdit->mergeCurrentCharFormat(fmt);
+    }
+}
+
+void MainWindow::on_alignLeftButton_clicked()
+{
+    ui->textEdit->setAlignment(Qt::AlignLeft);
+}
+
+void MainWindow::on_alignCenterButton_clicked()
+{
+    ui->textEdit->setAlignment(Qt::AlignHCenter);
+}
+
+void MainWindow::on_alignRightButton_clicked()
+{
+    ui->textEdit->setAlignment(Qt::AlignRight);
+}
+
+void MainWindow::on_alignJustifyButton_clicked()
+{
+    ui->textEdit->setAlignment(Qt::AlignJustify);
+}
+
+// для отмены и возврата изменения используется встроенный стек textEdit
+void MainWindow::on_undoButton_clicked()
+{
+    ui->textEdit->undo();
+}
+
+void MainWindow::on_redoButton_clicked()
+{
+    ui->textEdit->redo();
+}
+
+// вызывается при перемещении курсора / изменении выделения, чтобы кнопки Ж/К/Ч, шрифт и размер показывали формат текста под курсором, а не последнее нажатое состояние.
+void MainWindow::onCurrentCharFormatChanged(const QTextCharFormat &format)
+{
+    ui->boldButton->blockSignals(true);
+    ui->boldButton->setChecked(format.fontWeight() == QFont::Bold);
+    ui->boldButton->blockSignals(false);
+
+    ui->italicButton->blockSignals(true);
+    ui->italicButton->setChecked(format.fontItalic());
+    ui->italicButton->blockSignals(false);
+
+    ui->underlineButton->blockSignals(true);
+    ui->underlineButton->setChecked(format.fontUnderline());
+    ui->underlineButton->blockSignals(false);
+
+    ui->fontComboBox->blockSignals(true);
+    ui->fontComboBox->setCurrentFont(format.font());
+    ui->fontComboBox->blockSignals(false);
+
+    qreal pointSize = format.fontPointSize();
+    if (pointSize <= 0) {
+        pointSize = ui->textEdit->font().pointSize();
+    }
+    ui->fontSizeComboBox->blockSignals(true);
+    ui->fontSizeComboBox->setCurrentText(QString::number(pointSize));
+    ui->fontSizeComboBox->blockSignals(false);
+}
+
+// QTextEdit не даёт отдельного сигнала на смену выравнивания, поэтому подглядываем текущее выравнивание при каждом движении курсора и обновляем кнопки
+void MainWindow::onTextEditCursorPositionChanged()
+{
+    Qt::Alignment align = ui->textEdit->alignment();
+
+    ui->alignLeftButton->blockSignals(true);
+    ui->alignLeftButton->setChecked(align.testFlag(Qt::AlignLeft));
+    ui->alignLeftButton->blockSignals(false);
+
+    ui->alignCenterButton->blockSignals(true);
+    ui->alignCenterButton->setChecked(align.testFlag(Qt::AlignHCenter));
+    ui->alignCenterButton->blockSignals(false);
+
+    ui->alignRightButton->blockSignals(true);
+    ui->alignRightButton->setChecked(align.testFlag(Qt::AlignRight));
+    ui->alignRightButton->blockSignals(false);
+
+    ui->alignJustifyButton->blockSignals(true);
+    ui->alignJustifyButton->setChecked(align.testFlag(Qt::AlignJustify));
+    ui->alignJustifyButton->blockSignals(false);
 }

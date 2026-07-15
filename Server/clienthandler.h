@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QTcpSocket>
+#include <QPointer>
 #include "protocol.h"
 
 class ClientHandler : public QObject
@@ -28,7 +29,7 @@ private slots:
     void onDisconnected();
 
 private:
-    QTcpSocket *m_socket;
+    QPointer<QTcpSocket> m_socket;
     quint32 m_nextBlockSize = 0;
     int m_id;
     QString m_name;
