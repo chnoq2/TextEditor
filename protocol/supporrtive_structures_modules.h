@@ -28,6 +28,17 @@
 
 #include <QDebug>
 
+namespace DocAlign {
+enum Alignment
+    {
+    Unknown = -1,
+    Left = 0,
+    Center = 1,
+    Right = 2,
+    Justify = 3
+    };
+}
+
 struct ImageElement
 {
     int index_inside_vector = 0; // позиция изображения внутри вектора -> из std::vector<QString> full text, мы брали индекс у элемента QSTRIN
@@ -61,19 +72,42 @@ struct TextStyleElement
 {
     int index_inside_vector = 0;
     int length = 0;
-    QString font_name;
+    QString font_name="";
     bool is_bold = false;
-    bool is_static= false;
+    bool is_italic = false;
+    bool is_underline = false;
+
+    int font_size =0;
+
+    int alignment = DocAlign::Unknown;
+
+    TextStyleElement() = default;
+    TextStyleElement(int start, int len): index_inside_vector(start), length(len){}
+
+
+    void set_alignment(int align) { alignment = align; }
+    void set_bold(bool b) { is_bold = b; }
+    void set_italic(bool i) { is_italic = i; }
+    void set_underline(bool u) { is_underline = u; }
+    void set_font_name(const QString &name) { font_name = name; }
+    void set_size(int s) { font_size = s; }
+
+    bool has_formatting() const
+    {
+        return is_bold || is_italic || is_underline || font_size != 12;
+    }
 
     friend QDataStream &operator<<(QDataStream &out, const TextStyleElement &style)
     {
-        out << style.index_inside_vector << style.length << style.font_name << style.is_bold << style.is_static;
+        out << style.index_inside_vector << style.length << style.font_name << style.is_bold
+            << style.is_italic << style.is_underline << style.font_size << style.alignment;
         return out;
     }
 
     friend QDataStream &operator>>(QDataStream &in, TextStyleElement &style)
     {
-        in >> style.index_inside_vector >> style.length >> style.font_name >> style.is_bold >> style.is_static;
+        in >> style.index_inside_vector >> style.length >> style.font_name  >> style.is_bold
+            >> style.is_italic>> style.is_underline >> style.font_size >> style.alignment;
         return in;
     }
 

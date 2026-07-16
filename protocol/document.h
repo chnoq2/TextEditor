@@ -73,8 +73,11 @@ public:
         }
     }
 
+
     QString get_text() const { return m_text; }
     int get_length() const { return m_text.length(); }
+    size_t get_paragraphs_count() const {return full_text.size();}
+
 
     const std::vector<QString>& get_full_text() const {return full_text;}
 
@@ -87,9 +90,6 @@ public:
     {
         return m_paragraph_styles.value(paragrapIdx,QList<TextStyleElement>());
     }
-
-    size_t get_paragraphs_count() const {return full_text.size();}
-
 
 
     friend QDataStream &operator<<(QDataStream &out, const document_standard &doc)
@@ -116,7 +116,7 @@ public:
         QZipReader zip(filepath);
         if(zip.status() != QZipReader::NoError)
         {
-            qDebug() << "[ERROR] This directory doesn`t exist\n";
+            qDebug() << "[ERROR] This directory doesn't exist\n";
             return;
         }
 
@@ -129,6 +129,7 @@ public:
                 all_docx_images[imageName] = zip.fileData(file.filePath);
             }
         }
+
         QByteArray xmlData = zip.fileData("word/document.xml");
         QXmlStreamReader xml(xmlData);
 
@@ -136,9 +137,22 @@ public:
         m_paragraph_images.clear();
         m_paragraph_styles.clear();
 
-        int current_paragraph_index = 0;
+        int current_paragraph_index = -1;
         QString current_paragraph_text = "";
         int current_image_counter = 1;
+
+        TextStyleElement active_style;
+        TextStyleElement paragraph_default_style;
+
+        bool inside_rPr = false;
+        bool inside_pPr = false;
+
+        auto readBoolAttribute = [](const QXmlStreamAttributes &attrs) -> bool
+        {
+            if(!attrs.hasAttribute("w:val")) return true;
+            QString val = attrs.value("w:val").toString();
+            return (val != "false" && val != "0" && val != "none");
+        };
 
         while(!xml.atEnd() && !xml.hasError())
         {
@@ -146,49 +160,149 @@ public:
 
             if(token == QXmlStreamReader::StartElement)
             {
-                if(xml.name() == QLatin1String("p"))
+                QStringRef name = xml.name();
+                QXmlStreamAttributes attrs = xml.attributes();
+
+                if(name == QLatin1String("p"))
                 {
-                    if(!current_paragraph_text.isEmpty() || current_paragraph_index > 0)
-                    {
+                    if (current_paragraph_index >= 0) {
                         full_text.push_back(current_paragraph_text);
-                        current_paragraph_index++;
-                        current_paragraph_text = "";
                     }
+                    current_paragraph_index++;
+                    current_paragraph_text = "";
+                    paragraph_default_style = TextStyleElement();
                 }
-
-                if(xml.name() == QLatin1String("t"))
+                else if(name == QLatin1String("pPr"))
                 {
-                    current_paragraph_text += xml.readElementText();
+                    inside_pPr = true;
                 }
-
-                if(xml.name() == QLatin1String("drawing"))
+                else if(name == QLatin1String("r"))
                 {
-                    ImageElement img;
-                    img.index_inside_vector = current_paragraph_text.length();
-                    img.resolution = "Auto";
+                    active_style = paragraph_default_style;
+                    active_style.index_inside_vector = current_paragraph_text.length();
+                }
+                else if(name == QLatin1String("rPr"))
+                {
+                    inside_rPr = true;
+                }
+                else if(inside_rPr || inside_pPr)
+                {
+                    TextStyleElement &target_style = inside_pPr ? paragraph_default_style : active_style;
 
-                    QString targetImage = QString("image%1.png").arg(current_image_counter);
-                    if (!all_docx_images.contains(targetImage)) {
-                        targetImage = QString("image%1.jpeg").arg(current_image_counter);
-                    }
-
-                    if(all_docx_images.contains(targetImage))
+                    if(name == QLatin1String("b"))
                     {
-                        img.binary_data = all_docx_images[targetImage];
-                        m_paragraph_images[current_paragraph_index].append(img);
-                        current_image_counter++;
+                        target_style.set_bold(readBoolAttribute(attrs));
                     }
+                    else if(name == QLatin1String("i"))
+                    {
+                        target_style.set_italic(readBoolAttribute(attrs));
+                    }
+                    else if(name == QLatin1String("u"))
+                    {
+                        target_style.set_underline(readBoolAttribute(attrs));
+                    }
+                    else if(name == QLatin1String("rFonts"))
+                    {
+                        if (attrs.hasAttribute("w:ascii")) {
+                            target_style.set_font_name(attrs.value("w:ascii").toString());
+                        }
+                    }
+                    else if(name == QLatin1String("sz"))
+                    {
+                        if (attrs.hasAttribute("w:val"))
+                        {
+                            int halfPoints = attrs.value("w:val").toInt();
+                            if (halfPoints > 0) {
+                                target_style.set_size(halfPoints / 2);
+                            }
+                        }
+                    }
+                    else if(name == QLatin1String("jc"))
+                    {
+                        if (attrs.hasAttribute("w:val")) {
+                            QString alignVal = attrs.value("w:val").toString();
+                            int alignFlag = DocAlign::Unknown;
+
+                            if (alignVal == "center") {
+                                alignFlag = DocAlign::Center;
+                            } else if (alignVal == "right") {
+                                alignFlag = DocAlign::Right;
+                            } else if (alignVal == "both") {
+                                alignFlag = DocAlign::Justify;
+                            } else if (alignVal == "left") {
+                                alignFlag = DocAlign::Left;
+                            }
+
+                            target_style.set_alignment(alignFlag);
+                        }
+                    }
+                }
+                else if(name == QLatin1String("t"))
+                {
+                    QString runText = xml.readElementText();
+                    int startIdx = current_paragraph_text.length();
+                    int len = runText.length();
+
+                    current_paragraph_text += runText;
+
+                    active_style.index_inside_vector = startIdx;
+                    active_style.length = len;
+
+                    if (current_paragraph_index >= 0)
+                    {
+                        m_paragraph_styles[current_paragraph_index].append(active_style);
+                    }
+                }
+                else if(name == QLatin1String("drawing"))
+                {
+                    if (current_paragraph_index >= 0)
+                    {
+                        ImageElement img;
+                        img.index_inside_vector = current_paragraph_text.length();
+                        img.resolution = "Auto";
+
+                        QString targetImage = QString("image%1.png").arg(current_image_counter);
+                        if (!all_docx_images.contains(targetImage)) {
+                            targetImage = QString("image%1.jpeg").arg(current_image_counter);
+                        }
+
+                        if(all_docx_images.contains(targetImage))
+                        {
+                            img.binary_data = all_docx_images[targetImage];
+                            m_paragraph_images[current_paragraph_index].append(img);
+                            current_image_counter++;
+                        }
+                    }
+                }
+            }
+            else if(token == QXmlStreamReader::EndElement)
+            {
+                QStringRef name = xml.name();
+                if(name == QLatin1String("rPr"))
+                {
+                    inside_rPr = false;
+                }
+                else if(name == QLatin1String("pPr"))
+                {
+                  if (current_paragraph_index >= 0 && m_paragraph_styles[current_paragraph_index].isEmpty() && paragraph_default_style.alignment != DocAlign::Unknown) {
+                        m_paragraph_styles[current_paragraph_index].append(paragraph_default_style);
+                    }
+                    inside_pPr = false;
                 }
             }
         }
 
-        if(!current_paragraph_text.isEmpty() || full_text.empty())
+        if(current_paragraph_index >= 0)
+        {
+            full_text.push_back(current_paragraph_text);
+        }
+        else if (full_text.empty())
         {
             full_text.push_back(current_paragraph_text);
         }
 
         update_m_Text();
     }
-};
 
+};
 #endif // DOCUMENT_H

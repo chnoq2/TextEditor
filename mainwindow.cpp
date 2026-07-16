@@ -109,11 +109,11 @@ void MainWindow::setInitialDocument(const document_standard &doc)
         int p_idx = static_cast<int>(i);
         const QString &p_text = doc.get_full_text()[i];
 
-        // сортируем картинки по сдвигу внутри абзаца, чтобы вставлять их по порядку появления в тексте
         QList<ImageElement> images = doc.get_images_for_paragraph(p_idx);
         std::sort(images.begin(), images.end(), [](const ImageElement &a, const ImageElement &b) {
             return a.index_inside_vector < b.index_inside_vector;
         });
+
         for (const ImageElement &img : images) {
             QImage qImg = QImage::fromData(img.binary_data);
             if (!qImg.isNull()) {
@@ -123,12 +123,54 @@ void MainWindow::setInitialDocument(const document_standard &doc)
         }
 
         const QList<TextStyleElement> styles = doc.get_styles_paragraph(p_idx);
+
+        QTextBlockFormat blockFormat;
+
+        Qt::Alignment paragraphAlignment = Qt::AlignLeft;
+        bool hasExplicitAlignment = false;
+
+        for (const TextStyleElement &style : styles) {
+            if (style.alignment != DocAlign::Unknown) {
+                hasExplicitAlignment = true;
+                if (style.alignment == DocAlign::Center) {
+                    paragraphAlignment = Qt::AlignCenter;
+                } else if (style.alignment == DocAlign::Right) {
+                    paragraphAlignment = Qt::AlignRight;
+                } else if (style.alignment == DocAlign::Justify) {
+                    paragraphAlignment = Qt::AlignJustify;
+                } else if (style.alignment == DocAlign::Left) {
+                    paragraphAlignment = Qt::AlignLeft;
+                }
+                break;
+            }
+        }
+
+        if (hasExplicitAlignment) {
+            blockFormat.setAlignment(paragraphAlignment);
+            cursor.setBlockFormat(blockFormat);
+        }
+
         auto formatAt = [&styles](int pos) {
             QTextCharFormat fmt;
+            fmt.setFontPointSize(12);
+
             for (const TextStyleElement &style : styles) {
                 if (pos >= style.index_inside_vector && pos < style.index_inside_vector + style.length) {
-                    if (style.is_bold) fmt.setFontWeight(QFont::Bold);
-                    if (!style.font_name.isEmpty()) fmt.setFontFamily(style.font_name);
+                    if (style.is_bold) {
+                        fmt.setFontWeight(QFont::Bold);
+                    }
+                    if (style.is_italic) {
+                        fmt.setFontItalic(true);
+                    }
+                    if (style.is_underline) {
+                        fmt.setFontUnderline(true);
+                    }
+                    if (!style.font_name.isEmpty()) {
+                        fmt.setFontFamily(style.font_name);
+                    }
+                    if (style.font_size > 0) {
+                        fmt.setFontPointSize(style.font_size);
+                    }
                 }
             }
             return fmt;
@@ -136,6 +178,7 @@ void MainWindow::setInitialDocument(const document_standard &doc)
 
         int textPos = 0;
         int imgIdx = 0;
+
         while (textPos < p_text.length() || imgIdx < images.size()) {
             if (imgIdx < images.size() && images[imgIdx].index_inside_vector <= textPos) {
                 QString urlStr = QString("internal://img_%1_%2.png").arg(p_idx).arg(images[imgIdx].index_inside_vector);
@@ -155,7 +198,7 @@ void MainWindow::setInitialDocument(const document_standard &doc)
             cursor.insertText(p_text.mid(textPos, runEnd - textPos));
             textPos = runEnd;
         }
-        cursor.setCharFormat(QTextCharFormat()); // сброс формата перед следующим абзацем
+        cursor.setCharFormat(QTextCharFormat());
 
         if (i < total_paragraphs - 1) {
             cursor.insertBlock();
@@ -226,12 +269,60 @@ void MainWindow::sendTypingStopIfIdle()
 void MainWindow::onTextInserted(int paragraphIdx, int position_in_paragraph, const QString &text,
                                 const QList<ImageElement>& images, const QList<TextStyleElement>& styles)
 {
-
-    Q_UNUSED(paragraphIdx); Q_UNUSED(images); Q_UNUSED(styles);
+    Q_UNUSED(paragraphIdx);
     m_ignoreChanges = true;
+
     QTextCursor cursor = ui->textEdit->textCursor();
     cursor.setPosition(position_in_paragraph);
-    cursor.insertText(text);
+
+    if (!styles.isEmpty()) {
+        int textPos = 0;
+            auto getInsertFormat = [&styles](int pos) {
+            QTextCharFormat fmt;
+            fmt.setFontPointSize(12);
+            for (const TextStyleElement &style : styles) {
+                if (pos >= style.index_inside_vector && pos < style.index_inside_vector + style.length) {
+                    if (style.is_bold) fmt.setFontWeight(QFont::Bold);
+                    if (style.is_italic) fmt.setFontItalic(true);
+                    if (style.is_underline) fmt.setFontUnderline(true);
+                    if (!style.font_name.isEmpty()) fmt.setFontFamily(style.font_name);
+                    if (style.font_size > 0) fmt.setFontPointSize(style.font_size);
+                }
+            }
+            return fmt;
+        };
+
+        while (textPos < text.length()) {
+            QTextCharFormat runFormat = getInsertFormat(textPos);
+            int runEnd = textPos + 1;
+            while (runEnd < text.length() && getInsertFormat(runEnd) == runFormat) {
+                runEnd++;
+            }
+            cursor.setCharFormat(runFormat);
+            cursor.insertText(text.mid(textPos, runEnd - textPos));
+            textPos = runEnd;
+        }
+    } else {
+        QTextCharFormat defaultFmt;
+        defaultFmt.setFontPointSize(12);
+        cursor.setCharFormat(defaultFmt);
+        cursor.insertText(text);
+    }
+
+    if (!images.isEmpty()) {
+        QTextDocument *document = ui->textEdit->document();
+        for (const ImageElement &img : images) {
+            QImage qImg = QImage::fromData(img.binary_data);
+            if (!qImg.isNull()) {
+                QString urlStr = QString("internal://img_net_%1.png").arg(img.index_inside_vector);
+                document->addResource(QTextDocument::ImageResource, QUrl(urlStr), qImg);
+
+                cursor.setPosition(position_in_paragraph + img.index_inside_vector);
+                cursor.insertImage(urlStr);
+            }
+        }
+    }
+
     m_lastText = ui->textEdit->toPlainText();
     m_ignoreChanges = false;
 }
