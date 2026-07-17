@@ -160,7 +160,7 @@ public:
 
             if(token == QXmlStreamReader::StartElement)
             {
-                QStringRef name = xml.name();
+                QStringView name = xml.name();
                 QXmlStreamAttributes attrs = xml.attributes();
 
                 if(name == QLatin1String("p"))
@@ -277,7 +277,7 @@ public:
             }
             else if(token == QXmlStreamReader::EndElement)
             {
-                QStringRef name = xml.name();
+                QStringView name = xml.name();
                 if(name == QLatin1String("rPr"))
                 {
                     inside_rPr = false;

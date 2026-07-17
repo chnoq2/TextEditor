@@ -2,13 +2,13 @@ FROM ubuntu:24.04 AS builder
 
 RUN apt-get update && apt-get install -y \
     qt6-base-dev \
+    qt6-base-private-dev \
     cmake \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY protocol/protocol.h ./Server/protocol.h
-COPY protocol/document.h ./Server/document.h
+COPY protocol/ ./protocol/
 COPY Server/ ./Server/
 
 WORKDIR /app/Server
