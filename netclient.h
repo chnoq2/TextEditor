@@ -15,7 +15,7 @@ class NetClient: public QObject
 private:
     QTcpSocket m_socket;
     Protocol::MessageType msgType;
-    Protocol::UserRole m_role;
+    // Protocol::UserRole m_role;
     quint32 m_nextBlockSize = 0;
     void handlePacket(quint8 type, const QByteArray &payload);
     int m_myId = -1;
@@ -41,7 +41,7 @@ public:
     void sendTypingStop();
     int myId() const { return m_myId; }
 
-    Protocol::UserRole role() const {return m_role;}
+    // Protocol::UserRole role() const {return m_role;}
 
 private slots:
 
@@ -58,7 +58,7 @@ signals:
 
     void documentSnapshotReceived(const QByteArray &snapshotData);
     void packetReceived(quint8 msgType, const QByteArray &payload);
-    void roleAssigned(Protocol::UserRole role);
+    // void roleAssigned(Protocol::UserRole role);
     void cursorMoved(int position);
 
     void connected();

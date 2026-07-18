@@ -30,23 +30,20 @@ void Server::onNewConnection()
 
     m_clients.append(client);
 
-    Protocol::UserRole role = (m_clients.size() == 1) ? Protocol::Writer : Protocol::Reader;
-    client->setRole(role);
+    // Protocol::UserRole role = (m_clients.size() == 1) ? Protocol::Writer : Protocol::Reader;
+    // client->setRole(role);
     client->setName(QString("User%1").arg(client->id()));
     qDebug() << "New client connected. ID:" << client->id()
-             << "IP:" << socket->peerAddress().toString()
-             << "Assigned Role:" << (role == Protocol::Writer ? "Writer" : "Reader");
+             << "IP:" << socket->peerAddress().toString();
 
+    // AssignRole теперь используется только чтобы сообщить клиенту его id
     QByteArray rolePayload;
     QDataStream roleOut(&rolePayload, QIODevice::WriteOnly);
-    roleOut << static_cast<quint8>(role);
+    roleOut << static_cast<quint8>(0) << client->id();
     client->sendPacket(Protocol::AssignRole, rolePayload);
 
 
     broadcastUserList();
-    qDebug() << "Sent DockSnapShot to client ID:" << client->id() << "Current doc length:" << m_document.get_length();
-
-
 }
 
 void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray payload)
@@ -57,6 +54,10 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
     {
         Protocol::TextInsertData data;
         in >> data;
+        if (in.status() != QDataStream::Ok) {
+            qWarning() << "Malformed TextInsert packet from client ID:" << sender->id();
+            return;
+        }
 
         m_document.applyinsert(data);
 
@@ -71,6 +72,10 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
     {
         Protocol::TextDeleteData data;
         in >> data;
+        if (in.status() != QDataStream::Ok) {
+            qWarning() << "Malformed TextDelete packet from client ID:" << sender->id();
+            return;
+        }
         m_document.applyDelete(data);
 
         qDebug() << "Delete from client ID:" << sender->id()
@@ -89,6 +94,10 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
     {
         QString name;
         in >> name;
+        if (in.status() != QDataStream::Ok) {
+            qWarning() << "Malformed SetName packet from client ID:" << sender->id(); 
+            return;
+        }
         sender->setName(name);
         broadcastUserList();
 
@@ -110,10 +119,13 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
     else if (msgType == Protocol::DockSnapShot)
     {
         in >> m_document;
+        if (in.status() != QDataStream::Ok) {
+            qWarning() << "Malformed DockSnapShot packet from client ID:" << sender->id();
+            return;
+        }
         m_hasDocument = true;
 
-        qDebug() << "Received new document snapshot from client ID:" << sender->id()
-                 << "Length:" << m_document.get_length();
+        qDebug() << "Received new document snapshot from client ID:" << sender->id() << "Length:" << m_document.get_length();
         QByteArray forwardPayload;
         QDataStream out(&forwardPayload, QIODevice::WriteOnly);
         out << m_document;

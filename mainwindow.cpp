@@ -28,8 +28,15 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
 
     m_localTypingTimer = new QTimer(this);
     m_localTypingTimer->setSingleShot(true);
-    m_localTypingTimer->setInterval(2000);
+    m_localTypingTimer->setInterval(2000); // 2 секунды таймер блокировки
     connect(m_localTypingTimer, &QTimer::timeout, this, &MainWindow::sendTypingStopIfIdle);
+
+    m_lockOverlay = new QWidget(ui->textEdit->viewport());
+    m_lockOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_lockOverlay->setStyleSheet("background-color: rgba(0, 0, 0, 13);"); // 5% затемнение при блокировке документа
+    m_lockOverlay->setGeometry(ui->textEdit->viewport()->rect());
+    m_lockOverlay->hide();
+    ui->textEdit->viewport()->installEventFilter(this);
 
     connect(ui->settingsButton, &QPushButton::clicked, this, &MainWindow::onSettingsClicked);
 
@@ -37,7 +44,6 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     connect(m_client, &NetClient::textDeleted, this, &MainWindow::onTextDeleted);
 
 
-    // изменения
     connect(m_client, &NetClient::documentSnapshotReceived, this, [this](const QByteArray &snapshotData) {
         if (snapshotData.isEmpty()) return;
 
@@ -210,6 +216,14 @@ void MainWindow::setInitialDocument(const document_standard &doc)
 }
 
 
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == ui->textEdit->viewport() && event->type() == QEvent::Resize) {
+        m_lockOverlay->setGeometry(ui->textEdit->viewport()->rect());
+    }
+    return QMainWindow::eventFilter(obj, event);
+}
+
 void MainWindow::loadConnectionSettings()
 {
     QSettings settings;
@@ -253,11 +267,14 @@ void MainWindow::onTextChanged()
     int newEnd = newText.length();
     while (oldEnd > start && newEnd > start && oldText[oldEnd - 1] == newText[newEnd - 1]) { oldEnd--; newEnd--; }
 
-    if (oldEnd > start) { m_client->sendDelete(0, start, oldEnd - start); }
-    if (newEnd > start) { m_client->sendInsert(0, start, newText.mid(start, newEnd - start)); }
+    bool packetSent = false;
+    if (oldEnd > start) { m_client->sendDelete(0, start, oldEnd - start); packetSent = true; }
+    if (newEnd > start) { m_client->sendInsert(0, start, newText.mid(start, newEnd - start)); packetSent = true; }
 
-    m_client->sendTypingStart();
-    m_localTypingTimer->start();
+    if (packetSent) {
+        m_client->sendTypingStart();
+        m_localTypingTimer->start();
+    }
     m_lastText = newText;
 }
 
@@ -356,8 +373,10 @@ void MainWindow::onUserListUpdated(const QList<Protocol::ClientInfo> &users)
 
     for (const auto &u : users) {
         m_userNames[u.get_id()] = u.get_name();
-        QString roleStr = (u.get_role() == Protocol::Writer) ? "Writer" : "Reader";
-        QString label = QString("%1 (%2)").arg(u.get_name(), roleStr);
+        // Роли (Writer/Reader) отключены, доступ к редактированию теперь регулируется временной блокировкой по TypingStart/TypingStop
+        // QString roleStr = (u.get_role() == Protocol::Writer) ? "Writer" : "Reader";
+        // QString label = QString("%1 (%2)").arg(u.get_name(), roleStr);
+        QString label = u.get_name();
         if (u.get_id() == m_client->myId())
             label += "  — вы";
         ui->usersListWidget->addItem(label);
@@ -369,6 +388,10 @@ void MainWindow::onTypingStarted(int userId)
     if (userId == m_client->myId()) return;
 
     m_typingUsers.insert(userId);
+    ui->textEdit->setReadOnly(true); // блокировка редактирования, пока печатает кто то другой
+    m_lockOverlay->setGeometry(ui->textEdit->viewport()->rect());
+    m_lockOverlay->show();
+    m_lockOverlay->raise();
 
     if (!m_typingExpireTimers.contains(userId)) {
         QTimer *t = new QTimer(this);
@@ -382,7 +405,7 @@ void MainWindow::onTypingStarted(int userId)
     for (int id : m_typingUsers)
         names << m_userNames.value(id, QString("User%1").arg(id));
 
-    ui->typingLabel->setText(names.join(", ") + (names.size() > 1 ? " печатают..." : " печатает..."));
+    ui->typingLabel->setText("Документ заблокирован — " + names.join(", ") + " печатает...");
     ui->typingLabel->show();
 }
 
@@ -391,12 +414,13 @@ void MainWindow::onTypingStopped(int userId)
     m_typingUsers.remove(userId);
     if (m_typingUsers.isEmpty()) {
         ui->typingLabel->hide();
+        ui->textEdit->setReadOnly(false); // никто больше не печатает — снимаем блокировку
+        m_lockOverlay->hide();
     } else {
         onTypingStarted(*m_typingUsers.begin());
     }
 }
 
-// пункт "Открыть файл..." в выпадающем меню кнопки "Файл" риббона (раньше была отдельная кнопка)
 void MainWindow::on_actionOpenFile_triggered()
 {
     QString filePath = QFileDialog::getOpenFileName(this, tr("Открыть docx"), "", tr("Документы (*.docx *.doc)"));

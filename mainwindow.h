@@ -58,8 +58,10 @@ private slots:
 
 private:
     void loadConnectionSettings();
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
     Ui::MainWindow *ui;
+    QWidget *m_lockOverlay = nullptr; // затемнение textEdit, пока документ заблокирован чужим редактированием
     NetClient *m_client;
 
     bool m_connected = false;

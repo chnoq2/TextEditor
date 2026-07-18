@@ -159,11 +159,13 @@ void NetClient::handlePacket(quint8 type, const QByteArray &payload)
         break;
     }
     case Protocol::AssignRole: {
+        // Роли (Writer/Reader) отключены
         quint8 role; int id;
         in >> role >> id;
-        m_role = static_cast<Protocol::UserRole>(role);
+        Q_UNUSED(role);
         m_myId = id;
-        emit roleAssigned(m_role);
+        // m_role = static_cast<Protocol::UserRole>(role);
+        // emit roleAssigned(m_role);
         break;
     }
     case Protocol::UserList: {
