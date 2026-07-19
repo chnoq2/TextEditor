@@ -15,7 +15,8 @@ enum MessageType : quint8 {
     SetName      = 7,   // клиент -> сервер: желаемое имя
     UserList     = 8,   // сервер -> клиенты: полный список участников
     TypingStart  = 9,   // клиент -> сервер -> остальные
-    TypingStop   = 10
+    TypingStop   = 10,
+    TextRestyle  = 11
 };
 
 enum UserRole : quint8 {
@@ -101,6 +102,34 @@ public:
     }
 
 };
+
+class TextRestyleData
+{
+    private:
+    int paragraph_index = 0;
+    TextStyleElement m_style;
+
+    public:
+    TextRestyleData() = default;
+    TextRestyleData(int index, const TextStyleElement style): paragraph_index(index), m_style(style) {}
+
+    int get_index() const {return paragraph_index;}
+    TextStyleElement get_style() const {return m_style;}
+
+    friend QDataStream &operator<<(QDataStream &out , const TextRestyleData &data)
+    {
+        out << data.paragraph_index << data.m_style;
+        return out;
+    }
+
+    friend QDataStream &operator>>(QDataStream &in, TextRestyleData &data)
+    {
+        in >> data.paragraph_index >> data.m_style;
+        return in;
+    }
+};
+
+
 
 class ClientInfo
 {

@@ -77,9 +77,16 @@ struct TextStyleElement
     bool is_italic = false;
     bool is_underline = false;
 
+
     int font_size =0;
 
     int alignment = DocAlign::Unknown;
+
+
+    QColor text_color = Qt::black;
+    int left_indent = 0;
+    int first_line_indent = 0;
+
 
     TextStyleElement() = default;
     TextStyleElement(int start, int len): index_inside_vector(start), length(len){}
@@ -92,9 +99,16 @@ struct TextStyleElement
     void set_font_name(const QString &name) { font_name = name; }
     void set_size(int s) { font_size = s; }
 
+
+    int get_index() const {return index_inside_vector;}
+    int get_length() const {return length;}
+    QString get_font_name() const {return font_name;}
+
+
     bool has_formatting() const
     {
-        return is_bold || is_italic || is_underline || font_size != 12;
+        return is_bold || is_italic || is_underline || font_size != 12 || font_name != "Arial" || text_color != Qt::black ||
+        left_indent != 0 || first_line_indent != 0;
     }
 
     friend QDataStream &operator<<(QDataStream &out, const TextStyleElement &style)

@@ -73,6 +73,45 @@ public:
         }
     }
 
+    void applyRestyle(const Protocol::TextRestyleData &data)
+    {
+        int p_idx = data.get_index();
+        TextStyleElement new_style = data.get_style();
+
+        if(p_idx >= 0 && p_idx < static_cast<int>(full_text.size()))
+        {
+            QList<TextStyleElement> &styles = m_paragraph_styles[p_idx];
+
+            if(new_style.alignment != DocAlign::Unknown)
+            {
+                for(auto &existing_style : styles)
+                {
+                    existing_style.set_alignment(new_style.alignment);
+
+                }
+            }
+
+            bool updated = false;
+            for(auto &existing_style: styles)
+            {
+                if(existing_style.index_inside_vector == new_style.index_inside_vector && existing_style.length == new_style.length)
+                {
+                    existing_style = new_style;
+                    updated = true;
+                    break;
+                }
+            }
+
+            if(!updated)
+            {
+                styles.append(new_style);
+            }
+
+            std::sort(styles.begin(), styles.end(), [](const TextStyleElement &a, const TextStyleElement &b) {
+                return a.index_inside_vector < b.index_inside_vector;
+            });
+        }
+    }
 
     QString get_text() const { return m_text; }
     int get_length() const { return m_text.length(); }
@@ -236,6 +275,28 @@ public:
                             target_style.set_alignment(alignFlag);
                         }
                     }
+                    else if(name == QLatin1String("color"))
+                    {
+                        if (attrs.hasAttribute("w:val")) {
+                            QString colorVal = attrs.value("w:val").toString();
+                            if (colorVal == "auto") {
+                                target_style.text_color = Qt::black;
+                            } else {
+                                target_style.text_color = QColor("#" + colorVal);
+                            }
+                        }
+                    }
+                    else if(name == QLatin1String("ind"))
+                    {
+                        if (attrs.hasAttribute("w:left")) {
+                            int leftDxa = attrs.value("w:left").toInt();
+                            target_style.left_indent = leftDxa / 20;
+                        }
+                        if (attrs.hasAttribute("w:firstLine")) {
+                            int firstLineDxa = attrs.value("w:firstLine").toInt();
+                            target_style.first_line_indent = firstLineDxa / 20;
+                        }
+                    }
                 }
                 else if(name == QLatin1String("t"))
                 {
@@ -250,7 +311,10 @@ public:
 
                     if (current_paragraph_index >= 0)
                     {
-                        m_paragraph_styles[current_paragraph_index].append(active_style);
+                        if (active_style.has_formatting() || active_style.alignment != DocAlign::Unknown)
+                        {
+                            m_paragraph_styles[current_paragraph_index].append(active_style);
+                        }
                     }
                 }
                 else if(name == QLatin1String("drawing"))
@@ -284,7 +348,14 @@ public:
                 }
                 else if(name == QLatin1String("pPr"))
                 {
-                  if (current_paragraph_index >= 0 && m_paragraph_styles[current_paragraph_index].isEmpty() && paragraph_default_style.alignment != DocAlign::Unknown) {
+
+                    if (current_paragraph_index >= 0 && m_paragraph_styles[current_paragraph_index].isEmpty() &&
+                        (paragraph_default_style.alignment != DocAlign::Unknown ||
+                         paragraph_default_style.left_indent != 0 ||
+                         paragraph_default_style.first_line_indent != 0))
+                    {
+                        paragraph_default_style.index_inside_vector = 0;
+                        paragraph_default_style.length = 0;
                         m_paragraph_styles[current_paragraph_index].append(paragraph_default_style);
                     }
                     inside_pPr = false;
@@ -299,6 +370,12 @@ public:
         else if (full_text.empty())
         {
             full_text.push_back(current_paragraph_text);
+        }
+
+        for (auto it = m_paragraph_styles.begin(); it != m_paragraph_styles.end(); ++it) {
+            std::sort(it.value().begin(), it.value().end(), [](const TextStyleElement &a, const TextStyleElement &b) {
+                return a.index_inside_vector < b.index_inside_vector;
+            });
         }
 
         update_m_Text();

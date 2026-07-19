@@ -101,7 +101,6 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
 
 }
 
-
 void MainWindow::setInitialDocument(const document_standard &doc)
 {
     m_ignoreChanges = true;
@@ -131,51 +130,45 @@ void MainWindow::setInitialDocument(const document_standard &doc)
         const QList<TextStyleElement> styles = doc.get_styles_paragraph(p_idx);
 
         QTextBlockFormat blockFormat;
-
         Qt::Alignment paragraphAlignment = Qt::AlignLeft;
-        bool hasExplicitAlignment = false;
+        int leftIndent = 0;
+        int firstLineIndent = 0;
 
         for (const TextStyleElement &style : styles) {
             if (style.alignment != DocAlign::Unknown) {
-                hasExplicitAlignment = true;
-                if (style.alignment == DocAlign::Center) {
-                    paragraphAlignment = Qt::AlignCenter;
-                } else if (style.alignment == DocAlign::Right) {
-                    paragraphAlignment = Qt::AlignRight;
-                } else if (style.alignment == DocAlign::Justify) {
-                    paragraphAlignment = Qt::AlignJustify;
-                } else if (style.alignment == DocAlign::Left) {
-                    paragraphAlignment = Qt::AlignLeft;
-                }
-                break;
+                if (style.alignment == DocAlign::Center) paragraphAlignment = Qt::AlignCenter;
+                else if (style.alignment == DocAlign::Right) paragraphAlignment = Qt::AlignRight;
+                else if (style.alignment == DocAlign::Justify) paragraphAlignment = Qt::AlignJustify;
+                else if (style.alignment == DocAlign::Left) paragraphAlignment = Qt::AlignLeft;
+            }
+            if (style.left_indent > 0) {
+                leftIndent = style.left_indent;
+            }
+            if (style.first_line_indent > 0) {
+                firstLineIndent = style.first_line_indent;
             }
         }
 
-        if (hasExplicitAlignment) {
-            blockFormat.setAlignment(paragraphAlignment);
-            cursor.setBlockFormat(blockFormat);
-        }
+        blockFormat.setAlignment(paragraphAlignment);
+        blockFormat.setLeftMargin(leftIndent);
+        blockFormat.setTextIndent(firstLineIndent);
+        cursor.setBlockFormat(blockFormat);
 
         auto formatAt = [&styles](int pos) {
             QTextCharFormat fmt;
             fmt.setFontPointSize(12);
+            fmt.setForeground(Qt::black);
 
             for (const TextStyleElement &style : styles) {
                 if (pos >= style.index_inside_vector && pos < style.index_inside_vector + style.length) {
-                    if (style.is_bold) {
-                        fmt.setFontWeight(QFont::Bold);
-                    }
-                    if (style.is_italic) {
-                        fmt.setFontItalic(true);
-                    }
-                    if (style.is_underline) {
-                        fmt.setFontUnderline(true);
-                    }
-                    if (!style.font_name.isEmpty()) {
-                        fmt.setFontFamily(style.font_name);
-                    }
-                    if (style.font_size > 0) {
-                        fmt.setFontPointSize(style.font_size);
+                    if (style.is_bold) fmt.setFontWeight(QFont::Bold);
+                    if (style.is_italic) fmt.setFontItalic(true);
+                    if (style.is_underline) fmt.setFontUnderline(true);
+                    if (!style.font_name.isEmpty()) fmt.setFontFamily(style.font_name);
+                    if (style.font_size > 0) fmt.setFontPointSize(style.font_size);
+
+                    if (style.text_color.isValid()) {
+                        fmt.setForeground(style.text_color);
                     }
                 }
             }
@@ -234,7 +227,7 @@ void MainWindow::loadConnectionSettings()
 
 void MainWindow::onSettingsClicked()
 {
-   SettingsDialog dlg(this); if (dlg.exec() == QDialog::Accepted) loadConnectionSettings();
+    SettingsDialog dlg(this); if (dlg.exec() == QDialog::Accepted) loadConnectionSettings();
 }
 
 
@@ -294,7 +287,7 @@ void MainWindow::onTextInserted(int paragraphIdx, int position_in_paragraph, con
 
     if (!styles.isEmpty()) {
         int textPos = 0;
-            auto getInsertFormat = [&styles](int pos) {
+        auto getInsertFormat = [&styles](int pos) {
             QTextCharFormat fmt;
             fmt.setFontPointSize(12);
             for (const TextStyleElement &style : styles) {
