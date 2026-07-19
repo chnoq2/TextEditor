@@ -27,6 +27,7 @@ private slots:
     void onTextInserted(int paragraphIdx, int position_in_paragraph, const QString &text,
                         const QList<ImageElement>& images, const QList<TextStyleElement>& styles);
     void onTextDeleted(int paragraphIdx, int position_in_paragraph, int length);
+    void onTextRestyled(int paragraphIdx, TextStyleElement style); // применить пришедший по сети формат/выравнивание
 
     void onSnapshotReceived(const QString &text);
 
@@ -59,6 +60,8 @@ private slots:
 private:
     void loadConnectionSettings();
     bool eventFilter(QObject *obj, QEvent *event) override;
+    void sendRestyleForRange(int start, int length); // отправить текущее форматирование
+    void applyAlignmentToSelection(Qt::Alignment qtAlign);
 
     Ui::MainWindow *ui;
     QWidget *m_lockOverlay = nullptr; // затемнение textEdit, пока документ заблокирован чужим редактированием

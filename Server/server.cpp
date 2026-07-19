@@ -85,6 +85,22 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
 
         broadcast(sender, msgType, payload);
     }
+    else if (msgType == Protocol::TextRestyle)
+    {
+        Protocol::TextRestyleData data;
+        in >> data;
+        if (in.status() != QDataStream::Ok) {
+            qWarning() << "Malformed TextRestyle packet from client ID:" << sender->id();
+            return;
+        }
+
+        m_document.applyRestyle(data);
+
+        qDebug() << "Restyle from client ID:" << sender->id()
+                 << "at paragraph:" << data.get_index();
+
+        broadcast(sender, msgType, payload);
+    }
     else if (msgType == Protocol::CursorMove)
     {
         qDebug() << "Cursor move event from client ID:" << sender->id();

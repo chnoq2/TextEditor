@@ -30,6 +30,7 @@ public:
                     const QList<ImageElement>& images = {}, const QList<TextStyleElement>& styles = {});
 
     void sendDelete(int paragraphIdx, int position_in_paragraph, int length);
+    void sendRestyle(int paragraphIdx, const TextStyleElement &style); // изменить формат/выравнивание уже существующего диапазона
     void sendCursorMove(int position);
 
     void connectToServer(const QString &host, quint16 port);
@@ -55,6 +56,7 @@ signals:
     void textInserted(int paragraphIdx,int position_in_paragraph, const QString &text,
                       const QList<ImageElement>& images, const QList<TextStyleElement>& styles);
     void textDeleted(int paragraphIdx,int position_in_paragraph, int length);
+    void textRestyled(int paragraphIdx, TextStyleElement style);
 
     void documentSnapshotReceived(const QByteArray &snapshotData);
     void packetReceived(quint8 msgType, const QByteArray &payload);

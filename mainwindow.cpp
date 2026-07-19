@@ -1,5 +1,6 @@
 #include <QTextCursor>
 #include <QTextCharFormat>
+#include <QTextBlock>
 #include <QFont>
 #include <QButtonGroup>
 #include <QIcon>
@@ -19,6 +20,7 @@
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
+    ui->textEdit->setStyleSheet("background-color: white;");
 
     m_client = new NetClient(this);
 
@@ -33,15 +35,17 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
 
     m_lockOverlay = new QWidget(ui->textEdit->viewport());
     m_lockOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
-    m_lockOverlay->setStyleSheet("background-color: rgba(0, 0, 0, 13);"); // 5% затемнение при блокировке документа
+    m_lockOverlay->setStyleSheet("background-color: rgba(0, 0, 0, 64);"); // 25% затемнение при блокировке документа
     m_lockOverlay->setGeometry(ui->textEdit->viewport()->rect());
     m_lockOverlay->hide();
+
     ui->textEdit->viewport()->installEventFilter(this);
 
     connect(ui->settingsButton, &QPushButton::clicked, this, &MainWindow::onSettingsClicked);
 
     connect(m_client, &NetClient::textInserted, this, &MainWindow::onTextInserted);
     connect(m_client, &NetClient::textDeleted, this, &MainWindow::onTextDeleted);
+    connect(m_client, &NetClient::textRestyled, this, &MainWindow::onTextRestyled);
 
 
     connect(m_client, &NetClient::documentSnapshotReceived, this, [this](const QByteArray &snapshotData) {
@@ -351,6 +355,45 @@ void MainWindow::onTextDeleted(int paragraphIdx, int position_in_paragraph, int 
     m_ignoreChanges = false;
 }
 
+void MainWindow::onTextRestyled(int paragraphIdx, TextStyleElement style)
+{
+    m_ignoreChanges = true;
+
+    QTextDocument *document = ui->textEdit->document();
+    QTextBlock block = document->findBlockByNumber(paragraphIdx);
+    if (!block.isValid()) { m_ignoreChanges = false; return; }
+
+    int absoluteStart = block.position() + style.index_inside_vector;
+    int absoluteEnd = absoluteStart + style.length;
+
+    QTextCursor cursor(document);
+    cursor.setPosition(absoluteStart);
+    cursor.setPosition(absoluteEnd, QTextCursor::KeepAnchor);
+
+    // отправка полного актуального состояния диапазона
+    QTextCharFormat fmt;
+    fmt.setFontWeight(style.is_bold ? QFont::Bold : QFont::Normal);
+    fmt.setFontItalic(style.is_italic);
+    fmt.setFontUnderline(style.is_underline);
+    if (!style.font_name.isEmpty()) fmt.setFontFamily(style.font_name);
+    if (style.font_size > 0) fmt.setFontPointSize(style.font_size);
+    cursor.mergeCharFormat(fmt);
+
+    // применяем выравнивание ко всему абзацу
+    if (style.alignment != DocAlign::Unknown) {
+        Qt::Alignment qtAlign = Qt::AlignLeft;
+        if (style.alignment == DocAlign::Center) qtAlign = Qt::AlignCenter;
+        else if (style.alignment == DocAlign::Right) qtAlign = Qt::AlignRight;
+        else if (style.alignment == DocAlign::Justify) qtAlign = Qt::AlignJustify;
+
+        QTextBlockFormat blockFmt;
+        blockFmt.setAlignment(qtAlign);
+        cursor.mergeBlockFormat(blockFmt);
+    }
+
+    m_ignoreChanges = false;
+}
+
 void MainWindow::onSnapshotReceived(const QString &text)
 {
     m_ignoreChanges = true;
@@ -416,13 +459,13 @@ void MainWindow::onTypingStopped(int userId)
 
 void MainWindow::on_actionOpenFile_triggered()
 {
-    QString filePath = QFileDialog::getOpenFileName(this, tr("Открыть docx"), "", tr("Документы (*.docx *.doc)"));
+    QString filePath = QFileDialog::getOpenFileName(this, tr("Открыть docx"), "", tr("Документы (*.docx)"));
     if (filePath.isEmpty()) return;
 
     document_standard doc;
     doc.read_doc(filePath);
 
-    if (doc.get_length() > 0 || doc.get_text() == "") {
+    if (doc.get_paragraphs_count() > 0) {
         setInitialDocument(doc);
 
         QByteArray buffer;
@@ -439,12 +482,62 @@ void MainWindow::on_actionSaveFile_triggered()
     QMessageBox::information(this, tr("Сохранение"), tr("Сохранение документа скоро будет доступно."));
 }
 
+// шлёт остальным полный текущий формат/выравнивание диапазона
+void MainWindow::sendRestyleForRange(int start, int length)
+{
+    if (length <= 0 || m_ignoreChanges) return;
+
+    QTextDocument *document = ui->textEdit->document();
+    int end = start + length;
+
+    QTextBlock block = document->findBlock(start);
+    while (block.isValid() && block.position() < end) {
+        int blockTextStart = block.position();
+        int blockTextEnd = blockTextStart + block.text().length(); // без учёта разделителя абзаца
+
+        int rangeStart = qMax(start, blockTextStart);
+        int rangeEnd = qMin(end, blockTextEnd);
+
+        if (rangeEnd > rangeStart) {
+            QTextCursor cursor(document);
+            cursor.setPosition(rangeStart);
+            cursor.setPosition(rangeEnd, QTextCursor::KeepAnchor);
+
+            QTextCharFormat fmt = cursor.charFormat();
+            QTextBlockFormat blockFmt = cursor.blockFormat();
+
+            TextStyleElement style(rangeStart - blockTextStart, rangeEnd - rangeStart);
+            style.is_bold = fmt.fontWeight() == QFont::Bold;
+            style.is_italic = fmt.fontItalic();
+            style.is_underline = fmt.fontUnderline();
+            QStringList fontFamilies = fmt.fontFamilies().toStringList();
+            style.font_name = fontFamilies.isEmpty() ? QString() : fontFamilies.constFirst();
+            style.font_size = static_cast<int>(fmt.fontPointSize());
+
+            Qt::Alignment qtAlign = blockFmt.alignment();
+            if (qtAlign & Qt::AlignHCenter) style.alignment = DocAlign::Center;
+            else if (qtAlign & Qt::AlignRight) style.alignment = DocAlign::Right;
+            else if (qtAlign & Qt::AlignJustify) style.alignment = DocAlign::Justify;
+            else style.alignment = DocAlign::Left;
+
+            m_client->sendRestyle(block.blockNumber(), style);
+        }
+
+        block = block.next();
+    }
+}
+
 // Панель форматирования (Главная)
 void MainWindow::on_boldButton_toggled(bool checked)
 {
     QTextCharFormat fmt;
     fmt.setFontWeight(checked ? QFont::Bold : QFont::Normal);
     ui->textEdit->mergeCurrentCharFormat(fmt);
+
+    // рассылаем если реально что-то выделено
+    QTextCursor cursor = ui->textEdit->textCursor();
+    if (cursor.hasSelection())
+        sendRestyleForRange(cursor.selectionStart(), cursor.selectionEnd() - cursor.selectionStart());
 }
 
 void MainWindow::on_italicButton_toggled(bool checked)
@@ -452,6 +545,10 @@ void MainWindow::on_italicButton_toggled(bool checked)
     QTextCharFormat fmt;
     fmt.setFontItalic(checked);
     ui->textEdit->mergeCurrentCharFormat(fmt);
+
+    QTextCursor cursor = ui->textEdit->textCursor();
+    if (cursor.hasSelection())
+        sendRestyleForRange(cursor.selectionStart(), cursor.selectionEnd() - cursor.selectionStart());
 }
 
 void MainWindow::on_underlineButton_toggled(bool checked)
@@ -459,6 +556,10 @@ void MainWindow::on_underlineButton_toggled(bool checked)
     QTextCharFormat fmt;
     fmt.setFontUnderline(checked);
     ui->textEdit->mergeCurrentCharFormat(fmt);
+
+    QTextCursor cursor = ui->textEdit->textCursor();
+    if (cursor.hasSelection())
+        sendRestyleForRange(cursor.selectionStart(), cursor.selectionEnd() - cursor.selectionStart());
 }
 
 void MainWindow::on_fontComboBox_currentFontChanged(const QFont &font)
@@ -466,6 +567,10 @@ void MainWindow::on_fontComboBox_currentFontChanged(const QFont &font)
     QTextCharFormat fmt;
     fmt.setFontFamily(font.family());
     ui->textEdit->mergeCurrentCharFormat(fmt);
+
+    QTextCursor cursor = ui->textEdit->textCursor();
+    if (cursor.hasSelection())
+        sendRestyleForRange(cursor.selectionStart(), cursor.selectionEnd() - cursor.selectionStart());
 }
 
 void MainWindow::on_fontSizeComboBox_currentTextChanged(const QString &text)
@@ -476,27 +581,48 @@ void MainWindow::on_fontSizeComboBox_currentTextChanged(const QString &text)
         QTextCharFormat fmt;
         fmt.setFontPointSize(size);
         ui->textEdit->mergeCurrentCharFormat(fmt);
+
+        QTextCursor cursor = ui->textEdit->textCursor();
+        if (cursor.hasSelection())
+            sendRestyleForRange(cursor.selectionStart(), cursor.selectionEnd() - cursor.selectionStart());
+    }
+}
+
+// применяем выравнивание ко всему выделенному фрагменту
+void MainWindow::applyAlignmentToSelection(Qt::Alignment qtAlign)
+{
+    QTextCursor cursor = ui->textEdit->textCursor();
+
+    QTextBlockFormat blockFmt;
+    blockFmt.setAlignment(qtAlign);
+    cursor.mergeBlockFormat(blockFmt);
+
+    if (cursor.hasSelection()) {
+        sendRestyleForRange(cursor.selectionStart(), cursor.selectionEnd() - cursor.selectionStart());
+    } else {
+        QTextBlock block = cursor.block();
+        sendRestyleForRange(block.position(), block.length());
     }
 }
 
 void MainWindow::on_alignLeftButton_clicked()
 {
-    ui->textEdit->setAlignment(Qt::AlignLeft);
+    applyAlignmentToSelection(Qt::AlignLeft);
 }
 
 void MainWindow::on_alignCenterButton_clicked()
 {
-    ui->textEdit->setAlignment(Qt::AlignHCenter);
+    applyAlignmentToSelection(Qt::AlignHCenter);
 }
 
 void MainWindow::on_alignRightButton_clicked()
 {
-    ui->textEdit->setAlignment(Qt::AlignRight);
+    applyAlignmentToSelection(Qt::AlignRight);
 }
 
 void MainWindow::on_alignJustifyButton_clicked()
 {
-    ui->textEdit->setAlignment(Qt::AlignJustify);
+    applyAlignmentToSelection(Qt::AlignJustify);
 }
 
 // для отмены и возврата изменения используется встроенный стек textEdit

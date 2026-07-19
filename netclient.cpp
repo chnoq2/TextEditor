@@ -52,6 +52,18 @@ void NetClient::sendDelete(int paragraphIdx, int posInParagraph, int length)
     sendPacket(Protocol::TextDelete, buffer);
 }
 
+void NetClient::sendRestyle(int paragraphIdx, const TextStyleElement &style)
+{
+    // style.index_inside_vector/length задает диапазон внутри абзаца, к которому применяется форматирование
+    QByteArray buffer;
+    QDataStream out(&buffer, QIODevice::WriteOnly);
+
+    Protocol::TextRestyleData data(paragraphIdx, style);
+    out << data;
+
+    sendPacket(Protocol::TextRestyle, buffer);
+}
+
 void NetClient::sendCursorMove(int position){
     QByteArray buffer;
     QDataStream out(&buffer, QIODevice::WriteOnly);
@@ -166,6 +178,13 @@ void NetClient::handlePacket(quint8 type, const QByteArray &payload)
         m_myId = id;
         // m_role = static_cast<Protocol::UserRole>(role);
         // emit roleAssigned(m_role);
+        break;
+    }
+    case Protocol::TextRestyle: {
+        // изменение форматирования уже существующего текста
+        Protocol::TextRestyleData data;
+        in >> data;
+        emit textRestyled(data.get_index(), data.get_style());
         break;
     }
     case Protocol::UserList: {
