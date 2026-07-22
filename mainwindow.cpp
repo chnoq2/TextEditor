@@ -174,6 +174,43 @@ void MainWindow::setInitialDocument(const document_standard &doc)
         int p_idx = static_cast<int>(i);
         const QString &p_text = doc.get_full_text()[i];
 
+        if (p_text.contains(pageBreakHtmlMarker)) {
+            cursor.insertBlock();
+
+            cursor.insertHtml(pageBreakHtml);
+
+            cursor.insertBlock();
+
+            QTextBlockFormat defaultBlockFmt;
+            defaultBlockFmt.setAlignment(Qt::AlignLeft);
+            cursor.setBlockFormat(defaultBlockFmt);
+            cursor.setCharFormat(QTextCharFormat());
+
+            continue;
+        }
+
+        const QList<TextStyleElement> styles = doc.get_styles_paragraph(p_idx);
+        QTextBlockFormat blockFormat;
+        Qt::Alignment paragraphAlignment = Qt::AlignLeft;
+        int leftIndent = 0;
+        int firstLineIndent = 0;
+
+        for (const TextStyleElement &style : styles) {
+            if (style.alignment != DocAlign::Unknown) {
+                if (style.alignment == DocAlign::Center) paragraphAlignment = Qt::AlignCenter;
+                else if (style.alignment == DocAlign::Right) paragraphAlignment = Qt::AlignRight;
+                else if (style.alignment == DocAlign::Justify) paragraphAlignment = Qt::AlignJustify;
+                else if (style.alignment == DocAlign::Left) paragraphAlignment = Qt::AlignLeft;
+            }
+            if (style.left_indent > 0) leftIndent = style.left_indent;
+            if (style.first_line_indent > 0) firstLineIndent = style.first_line_indent;
+        }
+
+        blockFormat.setAlignment(paragraphAlignment);
+        blockFormat.setLeftMargin(leftIndent);
+        blockFormat.setTextIndent(firstLineIndent);
+        cursor.setBlockFormat(blockFormat);
+
         QList<ImageElement> images = doc.get_images_for_paragraph(p_idx);
         std::sort(images.begin(), images.end(), [](const ImageElement &a, const ImageElement &b) {
             return a.index_inside_vector < b.index_inside_vector;
@@ -187,33 +224,6 @@ void MainWindow::setInitialDocument(const document_standard &doc)
             }
         }
 
-        const QList<TextStyleElement> styles = doc.get_styles_paragraph(p_idx);
-
-        QTextBlockFormat blockFormat;
-        Qt::Alignment paragraphAlignment = Qt::AlignLeft;
-        int leftIndent = 0;
-        int firstLineIndent = 0;
-
-        for (const TextStyleElement &style : styles) {
-            if (style.alignment != DocAlign::Unknown) {
-                if (style.alignment == DocAlign::Center) paragraphAlignment = Qt::AlignCenter;
-                else if (style.alignment == DocAlign::Right) paragraphAlignment = Qt::AlignRight;
-                else if (style.alignment == DocAlign::Justify) paragraphAlignment = Qt::AlignJustify;
-                else if (style.alignment == DocAlign::Left) paragraphAlignment = Qt::AlignLeft;
-            }
-            if (style.left_indent > 0) {
-                leftIndent = style.left_indent;
-            }
-            if (style.first_line_indent > 0) {
-                firstLineIndent = style.first_line_indent;
-            }
-        }
-
-        blockFormat.setAlignment(paragraphAlignment);
-        blockFormat.setLeftMargin(leftIndent);
-        blockFormat.setTextIndent(firstLineIndent);
-        cursor.setBlockFormat(blockFormat);
-
         auto formatAt = [&styles](int pos) {
             QTextCharFormat fmt;
             fmt.setFontPointSize(12);
@@ -224,12 +234,9 @@ void MainWindow::setInitialDocument(const document_standard &doc)
                     if (style.is_bold) fmt.setFontWeight(QFont::Bold);
                     if (style.is_italic) fmt.setFontItalic(true);
                     if (style.is_underline) fmt.setFontUnderline(true);
-                    if (!style.font_name.isEmpty()) fmt.setFontFamily(style.font_name);
+                    if (!style.font_name.isEmpty()) fmt.setFontFamilies({style.font_name});
                     if (style.font_size > 0) fmt.setFontPointSize(style.font_size);
-
-                    if (style.text_color.isValid()) {
-                        fmt.setForeground(style.text_color);
-                    }
+                    if (style.text_color.isValid()) fmt.setForeground(style.text_color);
                 }
             }
             return fmt;
@@ -257,6 +264,7 @@ void MainWindow::setInitialDocument(const document_standard &doc)
             cursor.insertText(p_text.mid(textPos, runEnd - textPos));
             textPos = runEnd;
         }
+
         cursor.setCharFormat(QTextCharFormat());
 
         if (i < total_paragraphs - 1) {

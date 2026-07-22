@@ -4,6 +4,15 @@
 #include "supporrtive_structures_modules.h"
 #include "protocol.h"
 
+inline const QString pageBreakHtmlMarker = "<!--PAGE_BREAK-->";
+
+inline const QString pageBreakHtml =
+    "<div style='margin-top: 20px; margin-bottom: 20px; text-align: center; border-bottom: 2px dashed #888888; line-height: 0.1em;'>"
+    "  <span style='background: #ffffff; padding: 0 10px; color: #666666; font-size: 10pt; font-weight: bold; font-family: sans-serif;'>"
+    "    — РАЗРЫВ СТРАНИЦЫ —"
+    "  </span>"
+    "</div>";
+
 class document_standard
 {
 private:
@@ -317,6 +326,33 @@ public:
                         }
                     }
                 }
+
+                else if(name == QLatin1String("sectPr"))
+                {
+                    if (inside_pPr)
+                    {
+                        current_paragraph_text += pageBreakHtmlMarker;
+                    }
+                }
+                else if(name == QLatin1String("tab"))
+                {
+                    current_paragraph_text += "\t";
+                }
+
+                else if(name == QLatin1String("br"))
+                {
+                    if (attrs.hasAttribute("w:type") && attrs.value("w:type") == "page")
+                    {
+                        current_paragraph_text += pageBreakHtmlMarker;
+                    }
+                    else
+                    {
+                        current_paragraph_text += "\n";
+                    }
+                }
+
+
+
                 else if(name == QLatin1String("drawing"))
                 {
                     if (current_paragraph_index >= 0)
@@ -325,12 +361,18 @@ public:
                         img.index_inside_vector = current_paragraph_text.length();
                         img.resolution = "Auto";
 
-                        QString targetImage = QString("image%1.png").arg(current_image_counter);
-                        if (!all_docx_images.contains(targetImage)) {
-                            targetImage = QString("image%1.jpeg").arg(current_image_counter);
+                        QString baseName = QString("image%1").arg(current_image_counter);
+                        QString targetImage;
+
+                        const QStringList extensions = {".png", ".jpeg", ".jpg", ".bmp"};
+                        for (const QString &ext : extensions) {
+                            if (all_docx_images.contains(baseName + ext)) {
+                                targetImage = baseName + ext;
+                                break;
+                            }
                         }
 
-                        if(all_docx_images.contains(targetImage))
+                        if(!targetImage.isEmpty())
                         {
                             img.binary_data = all_docx_images[targetImage];
                             m_paragraph_images[current_paragraph_index].append(img);
@@ -339,6 +381,7 @@ public:
                     }
                 }
             }
+
             else if(token == QXmlStreamReader::EndElement)
             {
                 QStringView name = xml.name();
@@ -348,17 +391,19 @@ public:
                 }
                 else if(name == QLatin1String("pPr"))
                 {
-
+                    inside_pPr = false;
+                }
+                else if(name == QLatin1String("p"))
+                {
                     if (current_paragraph_index >= 0 && m_paragraph_styles[current_paragraph_index].isEmpty() &&
                         (paragraph_default_style.alignment != DocAlign::Unknown ||
                          paragraph_default_style.left_indent != 0 ||
                          paragraph_default_style.first_line_indent != 0))
                     {
                         paragraph_default_style.index_inside_vector = 0;
-                        paragraph_default_style.length = 0;
+                        paragraph_default_style.length = current_paragraph_text.length();
                         m_paragraph_styles[current_paragraph_index].append(paragraph_default_style);
                     }
-                    inside_pPr = false;
                 }
             }
         }
@@ -380,6 +425,7 @@ public:
 
         update_m_Text();
     }
+
 
 };
 #endif // DOCUMENT_H

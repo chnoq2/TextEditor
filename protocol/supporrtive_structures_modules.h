@@ -116,6 +116,8 @@ struct TextStyleElement
         out << style.index_inside_vector << style.length << style.font_name << style.is_bold
             << style.is_italic << style.is_underline << style.font_size << style.alignment
             << style.text_color;
+
+            << style.text_color << style.left_indent << style.first_line_indent;
         return out;
     }
 
@@ -124,10 +126,10 @@ struct TextStyleElement
         in >> style.index_inside_vector >> style.length >> style.font_name  >> style.is_bold
             >> style.is_italic>> style.is_underline >> style.font_size >> style.alignment
             >> style.text_color;
+            >> style.text_color >> style.left_indent >> style.first_line_indent;
         return in;
     }
 
 };
-
 
 #endif // SUPPORRTIVE_STRUCTURES_MODULES_H
