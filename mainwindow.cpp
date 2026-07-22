@@ -8,14 +8,19 @@
 #include <QDir>
 #include <QTimer>
 #include <QSettings>
+#include <QFileInfo>
+#include <QScrollBar>
 #include <algorithm>
 
 #include "mainwindow.h"
 #include "protocol/document.h"
+#include "txtexporter.h"
 #include "ui_mainwindow.h"
 #include "netclient.h"
 #include "settingsdialog.h"
 #include "QMessageBox"
+#include <QColorDialog>
+#include <QRegularExpression>
 
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
@@ -38,6 +43,14 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     m_lockOverlay->setStyleSheet("background-color: rgba(0, 0, 0, 64);"); // 25% затемнение при блокировке документа
     m_lockOverlay->setGeometry(ui->textEdit->viewport()->rect());
     m_lockOverlay->hide();
+
+    // без этого затемнение съезжает при скролле
+    auto keepOverlayOnTop = [this]() {
+        m_lockOverlay->setGeometry(ui->textEdit->viewport()->rect());
+        m_lockOverlay->raise();
+    };
+    connect(ui->textEdit->verticalScrollBar(), &QScrollBar::valueChanged, this, keepOverlayOnTop);
+    connect(ui->textEdit->horizontalScrollBar(), &QScrollBar::valueChanged, this, keepOverlayOnTop);
 
     ui->textEdit->viewport()->installEventFilter(this);
 
@@ -69,24 +82,27 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
 
     connect(m_client, &NetClient::connected, this, [this]() {
         m_connected = true;
-        ui->pushButton->setText("Отключиться");
-        ui->statusLabel->setText("Подключено");
+        ui->pushButton->setText(tr("Отключиться"));
+        ui->statusLabel->setText(tr("Подключено"));
         ui->statusLabel->setStyleSheet("color: green;");
         m_client->sendSetName(m_userName);
+        updateWindowTitle();
     });
 
     connect(m_client, &NetClient::disconnected, this, [this]() {
         m_connected = false;
-        ui->pushButton->setText("Подключиться");
-        ui->statusLabel->setText("Не подключено");
+        ui->pushButton->setText(tr("Подключиться"));
+        ui->statusLabel->setText(tr("Не подключено"));
         ui->statusLabel->setStyleSheet("color: red;");
+        updateWindowTitle();
     });
 
     connect(m_client, &NetClient::connectionError, this, [this](const QString &message) {
         m_connected = false;
-        ui->pushButton->setText("Подключиться");
-        ui->statusLabel->setText("Ошибка: " + message);
+        ui->pushButton->setText(tr("Подключиться"));
+        ui->statusLabel->setText(tr("Ошибка: ") + message);
         ui->statusLabel->setStyleSheet("color: red;");
+        updateWindowTitle();
     });
 
     auto *alignGroup = new QButtonGroup(this);
@@ -103,6 +119,46 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     connect(ui->textEdit, &QTextEdit::undoAvailable, ui->undoButton, &QWidget::setEnabled);
     connect(ui->textEdit, &QTextEdit::redoAvailable, ui->redoButton, &QWidget::setEnabled);
 
+    connect(ui->textEdit->document(), &QTextDocument::contentsChanged, this, &MainWindow::updateWordCount);
+    updateWordCount();
+
+    updateWindowTitle();
+}
+
+void MainWindow::updateWordCount()
+{
+    QString text = ui->textEdit->toPlainText();
+    int charCount = text.length();
+    int wordCount = text.isEmpty() ? 0 : text.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts).size();
+    ui->wordCountLabel->setText(tr("Слов: %1 | Символов: %2").arg(wordCount).arg(charCount));
+}
+
+void MainWindow::updateWindowTitle()
+{
+    QString name = m_currentFilePath.isEmpty() ? tr("Без имени") : QFileInfo(m_currentFilePath).fileName();
+    QString title = (m_hasUnsavedChanges ? "*" : "") + name + " - TextEditor";
+    setWindowTitle(title);
+}
+
+void MainWindow::markUnsavedChanges()
+{
+    if (!m_hasUnsavedChanges) {
+        m_hasUnsavedChanges = true;
+        updateWindowTitle();
+    }
+}
+
+void MainWindow::resolveParagraphPosition(int absolutePos, int &paragraphIdx, int &positionInParagraph)
+{
+    QTextBlock block = ui->textEdit->document()->findBlock(absolutePos);
+    paragraphIdx = block.isValid() ? block.blockNumber() : 0;
+    positionInParagraph = block.isValid() ? (absolutePos - block.position()) : absolutePos;
+}
+
+int MainWindow::resolveAbsolutePosition(int paragraphIdx, int positionInParagraph)
+{
+    QTextBlock block = ui->textEdit->document()->findBlockByNumber(paragraphIdx);
+    return block.isValid() ? block.position() + positionInParagraph : positionInParagraph;
 }
 
 void MainWindow::setInitialDocument(const document_standard &doc)
@@ -254,6 +310,8 @@ void MainWindow::onTextChanged()
 {
     if (m_ignoreChanges) return;
 
+    markUnsavedChanges();
+
     QString newText = ui->textEdit->toPlainText();
     QString oldText = m_lastText;
 
@@ -264,9 +322,12 @@ void MainWindow::onTextChanged()
     int newEnd = newText.length();
     while (oldEnd > start && newEnd > start && oldText[oldEnd - 1] == newText[newEnd - 1]) { oldEnd--; newEnd--; }
 
+    int paragraphIdx = 0, positionInParagraph = 0;
+    resolveParagraphPosition(start, paragraphIdx, positionInParagraph);
+
     bool packetSent = false;
-    if (oldEnd > start) { m_client->sendDelete(0, start, oldEnd - start); packetSent = true; }
-    if (newEnd > start) { m_client->sendInsert(0, start, newText.mid(start, newEnd - start)); packetSent = true; }
+    if (oldEnd > start) { m_client->sendDelete(paragraphIdx, positionInParagraph, oldEnd - start); packetSent = true; }
+    if (newEnd > start) { m_client->sendInsert(paragraphIdx, positionInParagraph, newText.mid(start, newEnd - start)); packetSent = true; }
 
     if (packetSent) {
         m_client->sendTypingStart();
@@ -283,11 +344,11 @@ void MainWindow::sendTypingStopIfIdle()
 void MainWindow::onTextInserted(int paragraphIdx, int position_in_paragraph, const QString &text,
                                 const QList<ImageElement>& images, const QList<TextStyleElement>& styles)
 {
-    Q_UNUSED(paragraphIdx);
     m_ignoreChanges = true;
+    int absolutePos = resolveAbsolutePosition(paragraphIdx, position_in_paragraph);
 
     QTextCursor cursor = ui->textEdit->textCursor();
-    cursor.setPosition(position_in_paragraph);
+    cursor.setPosition(absolutePos);
 
     if (!styles.isEmpty()) {
         int textPos = 0;
@@ -331,7 +392,7 @@ void MainWindow::onTextInserted(int paragraphIdx, int position_in_paragraph, con
                 QString urlStr = QString("internal://img_net_%1.png").arg(img.index_inside_vector);
                 document->addResource(QTextDocument::ImageResource, QUrl(urlStr), qImg);
 
-                cursor.setPosition(position_in_paragraph + img.index_inside_vector);
+                cursor.setPosition(absolutePos + img.index_inside_vector);
                 cursor.insertImage(urlStr);
             }
         }
@@ -342,12 +403,12 @@ void MainWindow::onTextInserted(int paragraphIdx, int position_in_paragraph, con
 }
 
 void MainWindow::onTextDeleted(int paragraphIdx, int position_in_paragraph, int length){
-    Q_UNUSED(paragraphIdx);
-
     m_ignoreChanges = true;
 
+    int absolutePos = resolveAbsolutePosition(paragraphIdx, position_in_paragraph);
+
     QTextCursor cursor = ui->textEdit->textCursor();
-    cursor.setPosition(position_in_paragraph);
+    cursor.setPosition(absolutePos);
     cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, length);
     cursor.removeSelectedText();
 
@@ -377,6 +438,7 @@ void MainWindow::onTextRestyled(int paragraphIdx, TextStyleElement style)
     fmt.setFontUnderline(style.is_underline);
     if (!style.font_name.isEmpty()) fmt.setFontFamily(style.font_name);
     if (style.font_size > 0) fmt.setFontPointSize(style.font_size);
+    if (style.text_color.isValid()) fmt.setForeground(style.text_color);
     cursor.mergeCharFormat(fmt);
 
     // применяем выравнивание ко всему абзацу
@@ -468,6 +530,10 @@ void MainWindow::on_actionOpenFile_triggered()
     if (doc.get_paragraphs_count() > 0) {
         setInitialDocument(doc);
 
+        m_currentFilePath = filePath;
+        m_hasUnsavedChanges = false;
+        updateWindowTitle();
+
         QByteArray buffer;
         QDataStream out(&buffer, QIODevice::WriteOnly);
         out << doc;
@@ -479,7 +545,23 @@ void MainWindow::on_actionOpenFile_triggered()
 
 void MainWindow::on_actionSaveFile_triggered()
 {
-    QMessageBox::information(this, tr("Сохранение"), tr("Сохранение документа скоро будет доступно."));
+    QString filePath = m_currentFilePath;
+    // если текущий файл не txt переспрашиваем путь, чтобы не потерять
+    if (filePath.isEmpty() || !filePath.endsWith(".txt", Qt::CaseInsensitive)) {
+        filePath = QFileDialog::getSaveFileName(this, tr("Сохранить как"), "", tr("Текстовые файлы (*.txt)"));
+        if (filePath.isEmpty()) return;
+    }
+
+    TxtExporter txtExporter;
+    DocumentExporter &exporter = txtExporter;
+
+    if (exporter.exportDocument(ui->textEdit->document(), filePath)) {
+        m_currentFilePath = filePath;
+        m_hasUnsavedChanges = false;
+        updateWindowTitle();
+    } else {
+        QMessageBox::critical(this, tr("Ошибка"), tr("Не удалось сохранить файл."));
+    }
 }
 
 // шлёт остальным полный текущий формат/выравнивание диапазона
@@ -513,6 +595,7 @@ void MainWindow::sendRestyleForRange(int start, int length)
             QStringList fontFamilies = fmt.fontFamilies().toStringList();
             style.font_name = fontFamilies.isEmpty() ? QString() : fontFamilies.constFirst();
             style.font_size = static_cast<int>(fmt.fontPointSize());
+            style.text_color = fmt.foreground().color();
 
             Qt::Alignment qtAlign = blockFmt.alignment();
             if (qtAlign & Qt::AlignHCenter) style.alignment = DocAlign::Center;
@@ -533,6 +616,7 @@ void MainWindow::on_boldButton_toggled(bool checked)
     QTextCharFormat fmt;
     fmt.setFontWeight(checked ? QFont::Bold : QFont::Normal);
     ui->textEdit->mergeCurrentCharFormat(fmt);
+    markUnsavedChanges();
 
     // рассылаем если реально что-то выделено
     QTextCursor cursor = ui->textEdit->textCursor();
@@ -545,6 +629,7 @@ void MainWindow::on_italicButton_toggled(bool checked)
     QTextCharFormat fmt;
     fmt.setFontItalic(checked);
     ui->textEdit->mergeCurrentCharFormat(fmt);
+    markUnsavedChanges();
 
     QTextCursor cursor = ui->textEdit->textCursor();
     if (cursor.hasSelection())
@@ -556,6 +641,7 @@ void MainWindow::on_underlineButton_toggled(bool checked)
     QTextCharFormat fmt;
     fmt.setFontUnderline(checked);
     ui->textEdit->mergeCurrentCharFormat(fmt);
+    markUnsavedChanges();
 
     QTextCursor cursor = ui->textEdit->textCursor();
     if (cursor.hasSelection())
@@ -567,6 +653,7 @@ void MainWindow::on_fontComboBox_currentFontChanged(const QFont &font)
     QTextCharFormat fmt;
     fmt.setFontFamily(font.family());
     ui->textEdit->mergeCurrentCharFormat(fmt);
+    markUnsavedChanges();
 
     QTextCursor cursor = ui->textEdit->textCursor();
     if (cursor.hasSelection())
@@ -581,11 +668,72 @@ void MainWindow::on_fontSizeComboBox_currentTextChanged(const QString &text)
         QTextCharFormat fmt;
         fmt.setFontPointSize(size);
         ui->textEdit->mergeCurrentCharFormat(fmt);
+        markUnsavedChanges();
 
         QTextCursor cursor = ui->textEdit->textCursor();
         if (cursor.hasSelection())
             sendRestyleForRange(cursor.selectionStart(), cursor.selectionEnd() - cursor.selectionStart());
     }
+}
+
+// панель цвета текста
+void MainWindow::on_colorButton_clicked()
+{
+    QTextCursor cursor = ui->textEdit->textCursor();
+    QColor initial = cursor.charFormat().foreground().color();
+
+    QColor color = QColorDialog::getColor(initial, this, tr("Цвет текста"));
+    if (!color.isValid()) return;
+
+    QTextCharFormat fmt;
+    fmt.setForeground(color);
+    ui->textEdit->mergeCurrentCharFormat(fmt);
+    markUnsavedChanges();
+
+    if (cursor.hasSelection())
+        sendRestyleForRange(cursor.selectionStart(), cursor.selectionEnd() - cursor.selectionStart());
+}
+
+
+void MainWindow::on_imageButton_clicked()
+{
+    QString filePath = QFileDialog::getOpenFileName(this, tr("Вставить картинку"), "", tr("Изображения (*.png *.jpg *.jpeg *.bmp)"));
+    if (filePath.isEmpty()) return;
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) return;
+    QByteArray data = file.readAll();
+    file.close();
+
+    QImage qImg = QImage::fromData(data);
+    if (qImg.isNull()) {
+        QMessageBox::critical(this, tr("Ошибка"), tr("Не удалось загрузить изображение."));
+        return;
+    }
+
+    QTextCursor cursor = ui->textEdit->textCursor();
+    int insertPos = cursor.position();
+    QString urlStr = QString("internal://img_local_%1.png").arg(insertPos);
+
+    int paragraphIdx = 0, positionInParagraph = 0;
+    resolveParagraphPosition(insertPos, paragraphIdx, positionInParagraph);
+
+    m_ignoreChanges = true;
+    ui->textEdit->document()->addResource(QTextDocument::ImageResource, QUrl(urlStr), qImg);
+    cursor.insertImage(urlStr);
+    m_lastText = ui->textEdit->toPlainText();
+    m_ignoreChanges = false;
+
+    markUnsavedChanges();
+
+    ImageElement img;
+    img.index_inside_vector = 0;
+    img.resolution = "Auto";
+    img.binary_data = data;
+
+    m_client->sendInsert(paragraphIdx, positionInParagraph, QString(), {img}, {});
+    m_client->sendTypingStart();
+    m_localTypingTimer->start();
 }
 
 // применяем выравнивание ко всему выделенному фрагменту
@@ -596,6 +744,7 @@ void MainWindow::applyAlignmentToSelection(Qt::Alignment qtAlign)
     QTextBlockFormat blockFmt;
     blockFmt.setAlignment(qtAlign);
     cursor.mergeBlockFormat(blockFmt);
+    markUnsavedChanges();
 
     if (cursor.hasSelection()) {
         sendRestyleForRange(cursor.selectionStart(), cursor.selectionEnd() - cursor.selectionStart());

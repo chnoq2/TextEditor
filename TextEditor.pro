@@ -15,9 +15,12 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     netclient.cpp \
-    settingsdialog.cpp
+    settingsdialog.cpp \
+    txtexporter.cpp
 
 HEADERS += \
+    documentexporter.h \
+    txtexporter.h \
     mainwindow.h \
     netclient.h \
     protocol/supporrtive_structures_modules.h \

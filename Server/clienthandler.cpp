@@ -58,3 +58,23 @@ void ClientHandler::onDisconnected()
     qDebug() << "Client disconnected, id=" << m_id;
     emit disconnected(this);
 }
+
+void ClientHandler::setRole(Protocol::UserRole role)
+{
+    m_role = role;
+}
+
+void ClientHandler::setName(const QString &name)
+{
+    m_name = name;
+}
+
+Protocol::UserRole ClientHandler::role() const
+{
+    return m_role;
+}
+
+QString ClientHandler::name() const
+{
+    return m_name;
+}

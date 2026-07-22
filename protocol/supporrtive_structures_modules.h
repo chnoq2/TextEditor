@@ -114,14 +114,16 @@ struct TextStyleElement
     friend QDataStream &operator<<(QDataStream &out, const TextStyleElement &style)
     {
         out << style.index_inside_vector << style.length << style.font_name << style.is_bold
-            << style.is_italic << style.is_underline << style.font_size << style.alignment;
+            << style.is_italic << style.is_underline << style.font_size << style.alignment
+            << style.text_color;
         return out;
     }
 
     friend QDataStream &operator>>(QDataStream &in, TextStyleElement &style)
     {
         in >> style.index_inside_vector >> style.length >> style.font_name  >> style.is_bold
-            >> style.is_italic>> style.is_underline >> style.font_size >> style.alignment;
+            >> style.is_italic>> style.is_underline >> style.font_size >> style.alignment
+            >> style.text_color;
         return in;
     }
 

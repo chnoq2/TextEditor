@@ -13,7 +13,7 @@ bool Server::start(quint16 port)
     connect(&m_server, &QTcpServer::newConnection, this, &Server::onNewConnection);
 
     if (!m_server.listen(QHostAddress::Any, port)) {
-        qDebug() << "[Error] Failed to start server:" << m_server.errorString();
+        qWarning() << "[Error] Failed to start server:" << m_server.errorString();
         return false;
     }
     qDebug() << "Server started on port" << port;
@@ -50,7 +50,9 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
 {
     QDataStream in(&payload, QIODevice::ReadOnly);
 
-    if (msgType == Protocol::TextInsert)
+    switch (static_cast<Protocol::MessageType>(msgType))
+    {
+    case Protocol::TextInsert:
     {
         Protocol::TextInsertData data;
         in >> data;
@@ -67,8 +69,9 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
                 << "[Images:" << data.get_images_count() << ", Tools:" << data.get_tools_count() << "]";
 
         broadcast(sender, msgType, payload);
+        break;
     }
-    else if (msgType == Protocol::TextDelete)
+    case Protocol::TextDelete:
     {
         Protocol::TextDeleteData data;
         in >> data;
@@ -84,8 +87,9 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
                  << "len:" << data.get_length();
 
         broadcast(sender, msgType, payload);
+        break;
     }
-    else if (msgType == Protocol::TextRestyle)
+    case Protocol::TextRestyle:
     {
         Protocol::TextRestyleData data;
         in >> data;
@@ -100,18 +104,20 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
                  << "at paragraph:" << data.get_index();
 
         broadcast(sender, msgType, payload);
+        break;
     }
-    else if (msgType == Protocol::CursorMove)
+    case Protocol::CursorMove:
     {
         qDebug() << "Cursor move event from client ID:" << sender->id();
         broadcast(sender, msgType, payload);
+        break;
     }
-    else if (msgType == Protocol::SetName)
+    case Protocol::SetName:
     {
         QString name;
         in >> name;
         if (in.status() != QDataStream::Ok) {
-            qWarning() << "Malformed SetName packet from client ID:" << sender->id(); 
+            qWarning() << "Malformed SetName packet from client ID:" << sender->id();
             return;
         }
         sender->setName(name);
@@ -126,13 +132,15 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
             sender->sendPacket(Protocol::DockSnapShot, docPayload);
             qDebug() << "Sent current document to newly authorized client ID:" << sender->id();
         }
+        break;
     }
-
-    else if (msgType == Protocol::TypingStart || msgType == Protocol::TypingStop)
+    case Protocol::TypingStart:
+    case Protocol::TypingStop:
     {
         broadcastFrom(sender, static_cast<Protocol::MessageType>(msgType));
+        break;
     }
-    else if (msgType == Protocol::DockSnapShot)
+    case Protocol::DockSnapShot:
     {
         in >> m_document;
         if (in.status() != QDataStream::Ok) {
@@ -147,6 +155,10 @@ void Server::onPacketReceived(ClientHandler *sender, quint8 msgType, QByteArray 
         out << m_document;
 
         broadcast(sender, Protocol::DockSnapShot, forwardPayload);
+        break;
+    }
+    default:
+        break;
     }
 }
 

@@ -238,6 +238,26 @@
           </widget>
          </item>
          <item>
+          <widget class="QToolButton" name="colorButton">
+           <property name="text">
+            <string>A</string>
+           </property>
+           <property name="toolTip">
+            <string>Цвет текста</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="imageButton">
+           <property name="text">
+            <string>Вставить изображение</string>
+           </property>
+           <property name="toolTip">
+            <string>Вставить изображение</string>
+           </property>
+          </widget>
+         </item>
+         <item>
           <widget class="Line" name="homeSeparator2">
            <property name="orientation">
             <enum>Qt::Orientation::Vertical</enum>
@@ -314,108 +334,6 @@
          </item>
         </layout>
        </widget>
-       <widget class="QWidget" name="tabInsert">
-        <attribute name="title">
-         <string>Вставка</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="tabInsertLayout">
-         <item>
-          <widget class="QLabel" name="tabInsertStub">
-           <property name="text">
-            <string>Скоро будет доступно</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignmentFlag::AlignCenter</set>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-       <widget class="QWidget" name="tabDraw">
-        <attribute name="title">
-         <string>Рисование</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="tabDrawLayout">
-         <item>
-          <widget class="QLabel" name="tabDrawStub">
-           <property name="text">
-            <string>Скоро будет доступно</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignmentFlag::AlignCenter</set>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-       <widget class="QWidget" name="tabDesign">
-        <attribute name="title">
-         <string>Конструктор</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="tabDesignLayout">
-         <item>
-          <widget class="QLabel" name="tabDesignStub">
-           <property name="text">
-            <string>Скоро будет доступно</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignmentFlag::AlignCenter</set>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-       <widget class="QWidget" name="tabLayout">
-        <attribute name="title">
-         <string>Макет</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="tabLayoutLayout">
-         <item>
-          <widget class="QLabel" name="tabLayoutStub">
-           <property name="text">
-            <string>Скоро будет доступно</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignmentFlag::AlignCenter</set>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-       <widget class="QWidget" name="tabReferences">
-        <attribute name="title">
-         <string>Ссылки</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="tabReferencesLayout">
-         <item>
-          <widget class="QLabel" name="tabReferencesStub">
-           <property name="text">
-            <string>Скоро будет доступно</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignmentFlag::AlignCenter</set>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-       <widget class="QWidget" name="tabView">
-        <attribute name="title">
-         <string>Вид</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="tabViewLayout">
-         <item>
-          <widget class="QLabel" name="tabViewStub">
-           <property name="text">
-            <string>Скоро будет доступно</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignmentFlag::AlignCenter</set>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
         </widget>
      </item>
      <item>
@@ -439,11 +357,35 @@
           </widget>
          </item>
          <item>
-          <widget class="QLabel" name="typingLabel">
-           <property name="text">
-            <string/>
-           </property>
-          </widget>
+          <layout class="QHBoxLayout" name="statusLineLayout">
+           <item>
+            <widget class="QLabel" name="typingLabel">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="statusLineSpacer">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QLabel" name="wordCountLabel">
+             <property name="text">
+              <string>Слов: 0 | Символов: 0</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
         </layout>
        </item>

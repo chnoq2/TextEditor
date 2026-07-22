@@ -51,6 +51,8 @@ private slots:
     void on_alignCenterButton_clicked();
     void on_alignRightButton_clicked();
     void on_alignJustifyButton_clicked();
+    void on_colorButton_clicked();
+    void on_imageButton_clicked();
     void on_undoButton_clicked();
     void on_redoButton_clicked();
 
@@ -62,6 +64,11 @@ private:
     bool eventFilter(QObject *obj, QEvent *event) override;
     void sendRestyleForRange(int start, int length); // отправить текущее форматирование
     void applyAlignmentToSelection(Qt::Alignment qtAlign);
+    void updateWindowTitle();
+    void markUnsavedChanges();
+    void updateWordCount();
+    void resolveParagraphPosition(int absolutePos, int &paragraphIdx, int &positionInParagraph);
+    int resolveAbsolutePosition(int paragraphIdx, int positionInParagraph);
 
     Ui::MainWindow *ui;
     QWidget *m_lockOverlay = nullptr; // затемнение textEdit, пока документ заблокирован чужим редактированием
@@ -72,9 +79,12 @@ private:
     QString m_ip;
     quint16 m_port = 0;
 
+    QString m_currentFilePath; 
+    bool m_hasUnsavedChanges = false;
+
     bool m_ignoreChanges = false; // чтобы не отправлять обратно то что пришло с сервера
-    QString m_lastText;           // предыдущее состояние текста для вычисления diff
-    QTimer *m_localTypingTimer;              // авто-стоп собственного "печатает"
+    QString m_lastText; // предыдущее состояние текста для вычисления diff
+    QTimer *m_localTypingTimer; // авто-стоп собственного "печатает"
 
 
     QMap<int, QString> m_userNames;
