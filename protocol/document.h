@@ -254,8 +254,28 @@ public:
                             else if (highlightVal == "magenta") target_style.text_background_color = Qt::magenta;
                             else if (highlightVal == "red") target_style.text_background_color = Qt::red;
                             else if (highlightVal == "darkBlue") target_style.text_background_color = Qt::darkBlue;
+                            else if (highlightVal == "darkCyan") target_style.text_background_color = Qt::darkCyan;
+                            else if (highlightVal == "darkGray") target_style.text_background_color = Qt::darkGray;
+                            else if (highlightVal == "darkGreen") target_style.text_background_color = Qt::darkGreen;
+                            else if (highlightVal == "darkMagenta") target_style.text_background_color = Qt::darkMagenta;
+                            else if (highlightVal == "darkRed") target_style.text_background_color = Qt::darkRed;
+                            else if (highlightVal == "darkYellow") target_style.text_background_color = Qt::darkYellow;
+                            else if (highlightVal == "lightGray") target_style.text_background_color = Qt::lightGray;
+                            else if (highlightVal == "blue") target_style.text_background_color = Qt::blue;
+                            else if (highlightVal == "black") target_style.text_background_color = Qt::black;
                         }
                     }
+
+                    else if(name == QLatin1String("shd"))
+                    {
+                        if (attrs.hasAttribute("w:fill")) {
+                            QString fillVal = attrs.value("w:fill").toString();
+                            if (fillVal != "auto" && !fillVal.isEmpty()) {
+                                target_style.text_background_color = QColor("#" + fillVal);
+                            }
+                        }
+                    }
+
                     else if(name == QLatin1String("rFonts"))
                     {
                         if (attrs.hasAttribute("w:ascii")) {
@@ -397,13 +417,12 @@ public:
         }
         else if (full_text.empty())
         {
-            full_text.push_back(current_paragraph_text);
+            full_text.push_back("");
         }
 
-        for (auto it = m_paragraph_styles.begin(); it != m_paragraph_styles.end(); ++it) {
-            std::sort(it.value().begin(), it.value().end(), [](const TextStyleElement &a, const TextStyleElement &b) {
-                return a.index_inside_vector < b.index_inside_vector;
-            });
+        for (auto it = m_paragraph_styles.begin(); it != m_paragraph_styles.end(); ++it)
+        {
+            std::sort(it.value().begin(), it.value().end(), [](const TextStyleElement &a, const TextStyleElement &b){return a.index_inside_vector < b.index_inside_vector;});
         }
 
         update_m_Text();

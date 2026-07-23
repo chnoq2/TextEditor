@@ -168,9 +168,6 @@ void MainWindow::setInitialDocument(const document_standard &doc)
 
     QTextDocument *document = ui->textEdit->document();
 
-    // Задаем ширину страницы для ограничения текста рамками листа А4
-    document->setPageSize(QSizeF(714, -1));
-
     QTextCursor cursor(document);
     size_t total_paragraphs = doc.get_paragraphs_count();
 
@@ -217,15 +214,29 @@ void MainWindow::setInitialDocument(const document_standard &doc)
             QTextCharFormat fmt;
             fmt.setFontPointSize(12);
             fmt.setForeground(Qt::black);
+            fmt.setBackground(Qt::transparent);
 
             for (const TextStyleElement &style : styles) {
                 if (pos >= style.index_inside_vector && pos < style.index_inside_vector + style.length) {
                     if (style.is_bold) fmt.setFontWeight(QFont::Bold);
-                    if (style.is_italic) fmt.setFontItalic(true);
-                    if (style.is_underline) fmt.setFontUnderline(true);
-                    if (!style.font_name.isEmpty()) fmt.setFontFamilies({style.font_name});
-                    if (style.font_size > 0) fmt.setFontPointSize(style.font_size);
-                    if (style.text_color.isValid()) fmt.setForeground(style.text_color);
+                    else fmt.setFontWeight(QFont::Normal);
+
+                    fmt.setFontItalic(style.is_italic);
+                    fmt.setFontUnderline(style.is_underline);
+
+                    if (!style.font_name.isEmpty()) {
+                        fmt.setFontFamilies({style.font_name});
+                    }
+                    if (style.font_size > 0) {
+                        fmt.setFontPointSize(style.font_size);
+                    }
+                    if (style.text_color.isValid()) {
+                        fmt.setForeground(style.text_color);
+                    }
+
+                    if (style.text_background_color.isValid() && style.text_background_color != Qt::transparent) {
+                        fmt.setBackground(style.text_background_color);
+                    }
                 }
             }
             return fmt;

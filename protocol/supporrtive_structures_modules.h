@@ -84,7 +84,7 @@ struct TextStyleElement
 
 
     QColor text_color = Qt::black;
-    QColor text_background_color = Qt::transparent; // Цвет маркера (выделения текста)
+    QColor text_background_color = Qt::transparent;
     int left_indent = 0;
     int first_line_indent = 0;
 
