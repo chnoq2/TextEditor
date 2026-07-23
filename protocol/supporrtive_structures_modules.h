@@ -17,7 +17,7 @@
 
 #include "qdebug.h"
 #include <private/qzipreader_p.h>
-#include <private/qzipreader_p.h>
+
 
 // добавлены новые заголовки
 #include <QFile>
@@ -30,13 +30,13 @@
 
 namespace DocAlign {
 enum Alignment
-    {
+{
     Unknown = -1,
     Left = 0,
     Center = 1,
     Right = 2,
     Justify = 3
-    };
+};
 }
 
 struct ImageElement
@@ -78,12 +78,13 @@ struct TextStyleElement
     bool is_underline = false;
 
 
-    int font_size =0;
+    int font_size = 0;
 
     int alignment = DocAlign::Unknown;
 
 
     QColor text_color = Qt::black;
+    QColor text_background_color = Qt::transparent; // Цвет маркера (выделения текста)
     int left_indent = 0;
     int first_line_indent = 0;
 
@@ -107,26 +108,24 @@ struct TextStyleElement
 
     bool has_formatting() const
     {
-        return is_bold || is_italic || is_underline || font_size != 12 || font_name != "Arial" || text_color != Qt::black ||
-        left_indent != 0 || first_line_indent != 0;
+        return is_bold || is_italic || is_underline || font_size != 12 || font_name != "Arial"
+               || text_color != Qt::black || text_background_color != Qt::transparent
+               || left_indent != 0 || first_line_indent != 0;
     }
 
     friend QDataStream &operator<<(QDataStream &out, const TextStyleElement &style)
     {
         out << style.index_inside_vector << style.length << style.font_name << style.is_bold
             << style.is_italic << style.is_underline << style.font_size << style.alignment
-            << style.text_color;
-
-            << style.text_color << style.left_indent << style.first_line_indent;
+            << style.text_color << style.text_background_color << style.left_indent << style.first_line_indent;
         return out;
     }
 
     friend QDataStream &operator>>(QDataStream &in, TextStyleElement &style)
     {
         in >> style.index_inside_vector >> style.length >> style.font_name  >> style.is_bold
-            >> style.is_italic>> style.is_underline >> style.font_size >> style.alignment
-            >> style.text_color;
-            >> style.text_color >> style.left_indent >> style.first_line_indent;
+            >> style.is_italic >> style.is_underline >> style.font_size >> style.alignment
+            >> style.text_color >> style.text_background_color >> style.left_indent >> style.first_line_indent;
         return in;
     }
 

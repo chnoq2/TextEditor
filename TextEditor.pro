@@ -1,4 +1,6 @@
 QT += core gui network widgets
+QT += core gui network gui-private
+QT += core gui network printsupport
 QT += core-private
 QT += gui-private
 

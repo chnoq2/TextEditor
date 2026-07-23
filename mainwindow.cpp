@@ -167,27 +167,16 @@ void MainWindow::setInitialDocument(const document_standard &doc)
     ui->textEdit->clear();
 
     QTextDocument *document = ui->textEdit->document();
+
+    // Задаем ширину страницы для ограничения текста рамками листа А4
+    document->setPageSize(QSizeF(714, -1));
+
     QTextCursor cursor(document);
     size_t total_paragraphs = doc.get_paragraphs_count();
 
     for (size_t i = 0; i < total_paragraphs; ++i) {
         int p_idx = static_cast<int>(i);
         const QString &p_text = doc.get_full_text()[i];
-
-        if (p_text.contains(pageBreakHtmlMarker)) {
-            cursor.insertBlock();
-
-            cursor.insertHtml(pageBreakHtml);
-
-            cursor.insertBlock();
-
-            QTextBlockFormat defaultBlockFmt;
-            defaultBlockFmt.setAlignment(Qt::AlignLeft);
-            cursor.setBlockFormat(defaultBlockFmt);
-            cursor.setCharFormat(QTextCharFormat());
-
-            continue;
-        }
 
         const QList<TextStyleElement> styles = doc.get_styles_paragraph(p_idx);
         QTextBlockFormat blockFormat;
@@ -529,11 +518,20 @@ void MainWindow::onTypingStopped(int userId)
 
 void MainWindow::on_actionOpenFile_triggered()
 {
-    QString filePath = QFileDialog::getOpenFileName(this, tr("Открыть docx"), "", tr("Документы (*.docx)"));
+    QString filePath = QFileDialog::getOpenFileName(this, tr("Открыть документ"), "", tr("Документы (*.docx *.txt);;Все файлы (*.*)"));
     if (filePath.isEmpty()) return;
 
     document_standard doc;
-    doc.read_doc(filePath);
+
+    if (filePath.endsWith(".docx", Qt::CaseInsensitive)) {
+        doc.read_doc(filePath);
+    }
+    else if (filePath.endsWith(".txt", Qt::CaseInsensitive)) {
+        doc.read_txt(filePath);
+    } else {
+        QMessageBox::warning(this, tr("Предупреждение"), tr("Неподдерживаемый формат файла!"));
+        return;
+    }
 
     if (doc.get_paragraphs_count() > 0) {
         setInitialDocument(doc);
@@ -547,14 +545,13 @@ void MainWindow::on_actionOpenFile_triggered()
         out << doc;
         m_client->sendPacket(Protocol::DockSnapShot, buffer);
     } else {
-        QMessageBox::critical(this, tr("Ошибка"), tr("Не удалось распарсить файл!"));
+        QMessageBox::critical(this, tr("Ошибка"), tr("Не удалось прочитать файл!"));
     }
 }
 
 void MainWindow::on_actionSaveFile_triggered()
 {
     QString filePath = m_currentFilePath;
-    // если текущий файл не txt переспрашиваем путь, чтобы не потерять
     if (filePath.isEmpty() || !filePath.endsWith(".txt", Qt::CaseInsensitive)) {
         filePath = QFileDialog::getSaveFileName(this, tr("Сохранить как"), "", tr("Текстовые файлы (*.txt)"));
         if (filePath.isEmpty()) return;

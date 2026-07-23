@@ -3,15 +3,15 @@
 
 #include "supporrtive_structures_modules.h"
 #include "protocol.h"
+#include <vector>
+#include <QString>
+#include <QMap>
+#include <QList>
+#include <QColor>
+#include <QDataStream>
+#include <QXmlStreamReader>
+#include <QDebug>
 
-inline const QString pageBreakHtmlMarker = "<!--PAGE_BREAK-->";
-
-inline const QString pageBreakHtml =
-    "<div style='margin-top: 20px; margin-bottom: 20px; text-align: center; border-bottom: 2px dashed #888888; line-height: 0.1em;'>"
-    "  <span style='background: #ffffff; padding: 0 10px; color: #666666; font-size: 10pt; font-weight: bold; font-family: sans-serif;'>"
-    "    — РАЗРЫВ СТРАНИЦЫ —"
-    "  </span>"
-    "</div>";
 
 class document_standard
 {
@@ -76,8 +76,6 @@ public:
             {
                 full_text[p_idx].remove(pos, len);
                 update_m_Text();
-
-
             }
         }
     }
@@ -96,7 +94,6 @@ public:
                 for(auto &existing_style : styles)
                 {
                     existing_style.set_alignment(new_style.alignment);
-
                 }
             }
 
@@ -124,21 +121,19 @@ public:
 
     QString get_text() const { return m_text; }
     int get_length() const { return m_text.length(); }
-    size_t get_paragraphs_count() const {return full_text.size();}
+    size_t get_paragraphs_count() const { return full_text.size(); }
 
-
-    const std::vector<QString>& get_full_text() const {return full_text;}
+    const std::vector<QString>& get_full_text() const { return full_text; }
 
     QList<ImageElement> get_images_for_paragraph(int paragraphIdx) const
     {
-        return m_paragraph_images.value(paragraphIdx,QList<ImageElement>());
+        return m_paragraph_images.value(paragraphIdx, QList<ImageElement>());
     }
 
     QList<TextStyleElement> get_styles_paragraph(int paragrapIdx) const
     {
-        return m_paragraph_styles.value(paragrapIdx,QList<TextStyleElement>());
+        return m_paragraph_styles.value(paragrapIdx, QList<TextStyleElement>());
     }
-
 
     friend QDataStream &operator<<(QDataStream &out, const document_standard &doc)
     {
@@ -249,6 +244,18 @@ public:
                     {
                         target_style.set_underline(readBoolAttribute(attrs));
                     }
+                    else if(name == QLatin1String("highlight"))
+                    {
+                        if (attrs.hasAttribute("w:val")) {
+                            QString highlightVal = attrs.value("w:val").toString();
+                            if (highlightVal == "yellow") target_style.text_background_color = Qt::yellow;
+                            else if (highlightVal == "green") target_style.text_background_color = Qt::green;
+                            else if (highlightVal == "cyan") target_style.text_background_color = Qt::cyan;
+                            else if (highlightVal == "magenta") target_style.text_background_color = Qt::magenta;
+                            else if (highlightVal == "red") target_style.text_background_color = Qt::red;
+                            else if (highlightVal == "darkBlue") target_style.text_background_color = Qt::darkBlue;
+                        }
+                    }
                     else if(name == QLatin1String("rFonts"))
                     {
                         if (attrs.hasAttribute("w:ascii")) {
@@ -326,33 +333,10 @@ public:
                         }
                     }
                 }
-
-                else if(name == QLatin1String("sectPr"))
-                {
-                    if (inside_pPr)
-                    {
-                        current_paragraph_text += pageBreakHtmlMarker;
-                    }
-                }
                 else if(name == QLatin1String("tab"))
                 {
                     current_paragraph_text += "\t";
                 }
-
-                else if(name == QLatin1String("br"))
-                {
-                    if (attrs.hasAttribute("w:type") && attrs.value("w:type") == "page")
-                    {
-                        current_paragraph_text += pageBreakHtmlMarker;
-                    }
-                    else
-                    {
-                        current_paragraph_text += "\n";
-                    }
-                }
-
-
-
                 else if(name == QLatin1String("drawing"))
                 {
                     if (current_paragraph_index >= 0)
@@ -381,7 +365,6 @@ public:
                     }
                 }
             }
-
             else if(token == QXmlStreamReader::EndElement)
             {
                 QStringView name = xml.name();
@@ -427,5 +410,34 @@ public:
     }
 
 
+    void read_txt(const QString &filepath)
+    {
+        QFile file(filepath);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+            qDebug() << "[ERROR] Cannot open txt file\n";
+            return;
+        }
+
+        QTextStream in(&file);
+        in.setEncoding(QStringConverter::Utf8);
+
+        full_text.clear();
+        m_paragraph_images.clear();
+        m_paragraph_styles.clear();
+
+        while (!in.atEnd()) {
+            QString line = in.readLine();
+            full_text.push_back(line);
+        }
+
+        if (full_text.empty()) {
+            full_text.push_back("");
+        }
+
+        file.close();
+        update_m_Text();
+    }
 };
+
 #endif // DOCUMENT_H
